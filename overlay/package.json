@@ -1,0 +1,12 @@
+{
+  "name": "railbox-overlay",
+  "version": "0.1.0",
+  "description": "晾衣杆 · 桌面浮层形态（最小验证）",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

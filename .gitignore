@@ -1,0 +1,16 @@
+# 依赖
+node_modules/
+
+# 运行时 / 缓存
+__pycache__/
+*.pyc
+.edgeprofile/
+*.log
+
+# 测试与临时产物
+_test_vault/
+_*.txt
+
+# 打包
+dist/
+out/

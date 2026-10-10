@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>晾衣杆</title>
+<style>
+  html,body{
+    margin:0;height:100%;overflow:hidden;background:transparent;
+    font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    pointer-events:none;user-select:none;-webkit-font-smoothing:antialiased;
+  }
+  #ropeSvg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
+
+  .slot{
+    position:absolute;left:0;top:0;
+    transition:transform 340ms cubic-bezier(.22,1,.36,1);
+    pointer-events:none;
+  }
+  .card{
+    position:relative;
+    width:248px;height:224px;box-sizing:border-box;
+    padding:18px 18px 14px;
+    background:#FFFFFF;border:1px solid #E2DFD7;border-radius:13px;
+    display:flex;flex-direction:column;
+    transform-origin:50% -18px;
+    opacity:1;
+    pointer-events:auto;cursor:grab;
+    box-shadow:0 1px 2px rgba(60,55,45,.05);
+    touch-action:none;
+  }
+  .card.in{animation:drop 340ms cubic-bezier(.22,1.15,.36,1) backwards;animation-delay:var(--d);}
+  @keyframes drop{
+    0%  {opacity:0;transform:translateY(-90px) rotate(-7deg);}
+    72% {opacity:1;transform:translateY(2px) rotate(1.1deg);}
+    100%{opacity:1;transform:none;}
+  }
+  .card.out{animation:rise 200ms cubic-bezier(.4,0,1,1) forwards;}
+  @keyframes rise{to{opacity:0;transform:translateY(-70px) rotate(-6deg);}}
+
+  .card.dragging{cursor:grabbing;
+    box-shadow:0 24px 52px rgba(50,45,35,.30), 0 3px 8px rgba(50,45,35,.12);z-index:60;}
+  .card.back{transition:transform 340ms cubic-bezier(.22,1.5,.36,1);}
+  .card.gone{transition:transform 300ms cubic-bezier(.5,0,.9,.4),opacity 300ms ease;opacity:0;}
+  .card.editing{opacity:0;}
+  .card.doom{border-style:dashed;border-color:#D9B08C;}
+
+  .clip{
+    position:absolute;top:-21px;left:50%;transform:translateX(-50%);
+    width:15px;height:25px;border-radius:3px;
+    box-shadow:0 1px 1.5px rgba(60,55,45,.18);
+  }
+  .src{font-size:12.5px;color:#9C9A93;margin-bottom:10px;display:flex;align-items:center;gap:7px;
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;opacity:.85;}
+  .txt{font-size:16px;line-height:1.62;color:#2C2C2A;
+       display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden;}
+
+  .foot{
+    position:absolute;left:18px;right:18px;bottom:12px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .age{font-size:11.5px;color:#C4C1B8;font-variant-numeric:tabular-nums;}
+  .sg{display:flex;align-items:center;gap:4px;}
+  .sg span{font-size:11.5px;font-variant-numeric:tabular-nums;color:#854F0B;}
+  .sg span.urgent{color:#A32D2D;}
+  .hintbar{margin-left:auto;font-size:11.5px;color:#CFCCC3;opacity:0;transition:opacity .18s;}
+  .card:hover .hintbar{opacity:1;}
+  .card.dragging .hintbar{opacity:0;}
+
+  #add{
+    position:absolute;width:46px;height:46px;border-radius:50%;
+    background:#FFFFFF;border:1px solid #DCD8CF;
+    display:flex;align-items:center;justify-content:center;
+    font-size:24px;line-height:1;color:#A9A59B;
+    pointer-events:auto;cursor:pointer;
+    opacity:0;transition:opacity .2s,transform .18s,color .18s,border-color .18s;
+    box-shadow:0 1px 2px rgba(60,55,45,.06);
+  }
+  body.showing #add{opacity:1;}
+  #add:hover{color:#C9A85E;border-color:#C9A85E;transform:scale(1.1);}
+
+  #box{
+    position:absolute;left:50%;bottom:34px;width:150px;height:150px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    opacity:0;transform:translateX(-50%) translateY(28px) scale(.94);
+    transition:opacity .22s,transform .22s;pointer-events:none;
+  }
+  body.dragging #box{opacity:.62;transform:translateX(-50%) translateY(0) scale(1);}
+  #box.hot{opacity:1 !important;transform:translateX(-50%) translateY(0) scale(1.08) !important;}
+  #box .lab{font-size:12px;color:#8A7340;letter-spacing:.02em;}
+
+  #edge{position:absolute;left:0;right:0;top:0;height:12px;
+    background:linear-gradient(180deg,rgba(201,162,74,.9),rgba(201,162,74,0));
+    opacity:0;transition:opacity .25s;}
+  #edge.on{opacity:1;}
+
+  #hud{position:absolute;left:20px;bottom:16px;font-size:11.5px;color:#C9C6BD;line-height:1.7;}
+  #hud b{color:#A9A59B;font-weight:600;}
+  #toast{
+    position:absolute;left:50%;bottom:210px;transform:translateX(-50%) translateY(10px);
+    background:#2C2C2A;color:#fff;font-size:13px;padding:10px 20px;border-radius:9px;
+    opacity:0;transition:opacity .22s,transform .22s;pointer-events:none;
+  }
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div id="edge"></div>
+
+<svg id="ropeSvg" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="ropeShadow" x="-5%" y="-160%" width="110%" height="600%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2.6" flood-color="#5A4A22" flood-opacity="0.26"/>
+    </filter>
+    <clipPath id="reveal" clipPathUnits="userSpaceOnUse">
+      <rect id="revealRect" x="0" y="0" width="0" height="100%"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#reveal)">
+    <path id="ropeBase" fill="none" stroke="#C9A85E" stroke-width="7" stroke-linecap="round"
+          filter="url(#ropeShadow)"/>
+    <path id="ropeTwist" fill="none" stroke="#9C7E36" stroke-width="1.8"
+          stroke-linecap="round" opacity="0.9"/>
+  </g>
+  <g id="anchors"></g>
+</svg>
+
+<div id="add" title="挂一条新灵感">+</div>
+<div id="cards"></div>
+
+<div id="box">
+  <svg width="96" height="82" viewBox="0 0 96 82">
+    <path d="M9 19 h27 l6 8 h45 v49 H9 Z"
+          fill="#D8B75D" stroke="#A8873A" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M9 33 L89 33 L83 76 L15 76 Z"
+          fill="#F0DB94" stroke="#A8873A" stroke-width="2.2" stroke-linejoin="round"/>
+    <path d="M17 33 H81" stroke="#C9A85E" stroke-width="1.6" opacity=".55"/>
+  </svg>
+  <span class="lab">采用</span>
+</div>
+
+<div id="hud"></div>
+<div id="toast"></div>
+
+<script>
+const EDGE_TRIGGER = true, EDGE_DWELL = 420, EDGE_BAND = 5, EDGE_REARM = 26;
+const CARD_W = 248, CARD_H = 224, ROW_GAP = 34, SLOT_PAD = 16;
+const CLIPS = ['#A32D2D','#185FA5','#854F0B','#0F6E56','#534AB7','#5F5E5A'];
+const CLIPNAME = ['red','blue','amber','teal','purple','gray'];
+
+const DEMO_TEXT = [
+  'AI 换脸的伦理边界：平台该不该强制打标','为什么慢内容在短视频时代反而更留人',
+  '摄影里的留白和内容里的信息密度是同一件事','做不成个人品牌的人，缺的是固定输出节奏',
+  '信息茧房自检：你最近三个月新增了哪些信息源','「整理」本身就是拖延的一种形式',
+  '选题分层：日更 · 周更 · 月更长线怎么配','把评论区当选题库的采集方法',
+  '冷启动阶段，内容数量比质量更重要吗','从一张废片里提取可用素材的方法论',
+  '记录不等于记住：捕捉工具的曝光设计','AI 音乐生成对独立音乐人：工具还是替代',
+  '为什么工具越多，产出越少','如何判断一个热点值不值得追'
+];
+const DEMO_SRC = ['X','知乎','小红书','ChatGPT','飞书','B站','浏览器','微信','YouTube','Obsidian'];
+
+window.addEventListener('error', function (e) {
+  if (window.rail) window.rail.log('★JS错误 ' + e.message + ' @' + (e.lineno || '?'));
+});
+window.addEventListener('unhandledrejection', function (e) {
+  if (window.rail) window.rail.log('★未捕获 Promise ' + (e.reason && e.reason.message || e.reason));
+});
+
+const $ = function (id) { return document.getElementById(id); };
+const revealRect = $('revealRect'), cardsEl = $('cards'), hud = $('hud'),
+      box = $('box'), toastEl = $('toast'), edge = $('edge'),
+      ropeBase = $('ropeBase'), anchors = $('anchors'), addBtn = $('add');
+
+let S = { ideas: [], capacity: 21, perRow: 7, maxRopes: 3, counts: {}, demo: false };
+let W = 0, H = 0, SAG = 56, PER_ROW = 7, ROPE_TOP = 180, ROW_STRIDE = 330,
+    MAX_ROPES = 3, ROPE_COUNT = 1, showing = false;
+const slots = new Map();
+let drag = null, revealRaf = 0, editingId = null, edgeTimer = 0, edgeArmed = true;
+
+const yOnRope = function (top, t) { return top + 4 * SAG * t * (1 - t); };
+const ropeTopOf = function (r) { return ROPE_TOP + r * ROW_STRIDE; };
+
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function aging(age) {
+  const t = Math.min(age / 20, 1), m = function (a, b) { return Math.round(a + (b - a) * t); };
+  return { bg: 'rgb(' + m(255,214) + ',' + m(255,210) + ',' + m(255,201) + ')',
+           fg: 'rgb(' + m(44,140) + ',' + m(44,136) + ',' + m(42,128) + ')',
+           bd: 'rgb(' + m(228,197) + ',' + m(225,191) + ',' + m(218,181) + ')' };
+}
+
+/* 沙漏：沙子随剩余时间下落。ratio=1 满，ratio=0 空 */
+function sandglass(ratio, urgent) {
+  ratio = Math.max(0, Math.min(1, ratio));
+  const col = urgent ? '#A32D2D' : '#854F0B';
+  const surf = 2 + (1 - ratio) * 6.4;
+  const w = 4 * (1 - (surf - 2) / 8);
+  const lh = 6.4 * (1 - ratio), lw = 4 * (1 - ratio);
+  let s = '<svg width="15" height="20" viewBox="0 0 16 20">';
+  s += '<path d="M2 1.4 H14 M2 18.6 H14" stroke="#D3D1C7" stroke-width="1.5" stroke-linecap="round"/>';
+  s += '<path d="M3 2 L13 2 L8 10 L13 18 L3 18 L8 10 Z" fill="none" stroke="#D3D1C7" stroke-width="1.3" stroke-linejoin="round"/>';
+  if (ratio > 0.03) {
+    s += '<path d="M' + (8 - w).toFixed(2) + ' ' + surf.toFixed(2) + ' L' +
+         (8 + w).toFixed(2) + ' ' + surf.toFixed(2) + ' L8 9.5 Z" fill="' + col + '"/>';
+  }
+  if (ratio < 0.97) {
+    s += '<path d="M' + (8 - lw).toFixed(2) + ' 17.4 L' + (8 + lw).toFixed(2) +
+         ' 17.4 L8 ' + (17.4 - lh).toFixed(2) + ' Z" fill="' + col + '"/>';
+  }
+  if (ratio > 0.03 && ratio < 0.97) {
+    s += '<path d="M8 10.2 L8 12" stroke="' + col + '" stroke-width="1.1" stroke-linecap="round"/>';
+  }
+  return s + '</svg>';
+}
+
+/* 屏幕上实际要渲染的卡片：真实数据 + 可选的演示填充 */
+function listOnRopes() {
+  let list = S.ideas.filter(function (i) { return i.status === 'hanging'; });
+  if (S.demo && list.length < S.capacity) {
+    const need = S.capacity - list.length;
+    for (let k = 0; k < need; k++) {
+      list.push({
+        id: '__demo' + k, text: DEMO_TEXT[k % DEMO_TEXT.length],
+        source: DEMO_SRC[k % DEMO_SRC.length], clip: CLIPNAME[(k + 2) % 6],
+        age: (k * 3) % 21, doom: k === 0, hoursLeft: k === 0 ? 31 : null
+      });
+    }
+  }
+  return list;
+}
+
+function ropePathFor(top) {
+  return 'M 0 ' + top + ' Q ' + (W / 2) + ' ' + (top + 2 * SAG) + ' ' + W + ' ' + top;
+}
+
+function buildRopes() {
+  const d = [];
+  for (let r = 0; r < ROPE_COUNT; r++) d.push(ropePathFor(ropeTopOf(r)));
+  ropeBase.setAttribute('d', d.join(' '));
+  const L = ropeBase.getTotalLength();
+  const step = 7.4, hx = 2.9, vy = 3.9, seg = [];
+  for (let s = 3; s < L - 3; s += step) {
+    const p = ropeBase.getPointAtLength(s);
+    seg.push('M' + (p.x - hx).toFixed(1) + ' ' + (p.y + vy).toFixed(1) +
+             'L' + (p.x + hx).toFixed(1) + ' ' + (p.y - vy).toFixed(1));
+  }
+  $('ropeTwist').setAttribute('d', seg.join(''));
+  let a = '';
+  for (let r = 0; r < ROPE_COUNT; r++) {
+    const top = ropeTopOf(r);
+    a += '<rect x="1" y="' + (top - 12) + '" width="12" height="24" rx="4" fill="#B08E3C"/>' +
+         '<rect x="' + (W - 13) + '" y="' + (top - 12) + '" width="12" height="24" rx="4" fill="#B08E3C"/>';
+  }
+  anchors.innerHTML = a;
+}
+
+function computeLayout() {
+  W = window.innerWidth; H = window.innerHeight;
+  ROPE_TOP = Math.round(H * 0.13);
+  SAG = Math.max(40, Math.min(72, Math.round(W * 0.022)));
+  PER_ROW = S.perRow || Math.max(5, Math.min(7, Math.round(W / 360)));
+  ROW_STRIDE = SAG + SLOT_PAD + CARD_H + ROW_GAP;
+  const room = H - ROPE_TOP - SAG - CARD_H - 256;
+  MAX_ROPES = Math.max(1, Math.min(3, 1 + Math.floor(room / ROW_STRIDE)));
+  const list = listOnRopes();
+  const need = Math.max(1, Math.ceil(list.length / PER_ROW));
+  ROPE_COUNT = Math.min(MAX_ROPES, need);
+  addBtn.style.left = '20px';
+  addBtn.style.top = (ROPE_TOP - 58) + 'px';
+}
+
+function placeOf(k) {
+  const r = Math.floor(k / PER_ROW), i = k % PER_ROW, t = (i + 0.5) / PER_ROW;
+  return { r: r, t: t, x: W * t, y: yOnRope(ropeTopOf(r), t) };
+}
+
+function cardHTML(it) {
+  const st = aging(it.age);
+  const ci = CLIPNAME.indexOf(it.clip) >= 0 ? CLIPNAME.indexOf(it.clip) : 1;
+  const hex = CLIPS[ci];
+  let foot = '';
+  if (it.doom) {
+    const hrs = it.hoursLeft === null || it.hoursLeft === undefined ? 48 : it.hoursLeft;
+    foot = '<div class="sg">' + sandglass(hrs / 48, hrs <= 12) +
+           (hrs <= 12 ? '<span class="urgent">' + hrs + 'h</span>' : '') + '</div>';
+  } else {
+    foot = '<div class="age">' + it.age + ' 天</div>';
+  }
+  return {
+    bg: st.bg, bd: st.bd,
+    html:
+      '<span class="clip" style="background:' + hex + '"></span>' +
+      '<div class="src"><span class="dot" style="background:' + hex + '"></span>' +
+        esc(it.source || '未知来源') + '</div>' +
+      '<div class="txt" style="color:' + st.fg + '">' + esc(it.text) + '</div>' +
+      '<div class="foot">' + foot + '<div class="hintbar">拖到下方采用 · 点击编辑</div></div>'
+  };
+}
+
+/* 就地把界面同步到最新数据：
+   已经在场上的卡片只改位置（靠 .slot 的 CSS 过渡自然补间，于是会自动往后挪一格），
+   新出现的卡片做落绳动画，消失的卡片淡出。 */
+function sync(animateNew) {
+  computeLayout();
+  buildRopes();
+  const list = listOnRopes();
+  const shown = Math.min(list.length, ROPE_COUNT * PER_ROW);
+  const keep = {};
+
+  const emptyEl = cardsEl.querySelector('div[data-empty]');
+  if (!shown) {
+    if (!emptyEl) {
+      const top = ropeTopOf(0);
+      const s = document.createElement('div');
+      s.dataset.empty = '1';
+      s.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);top:' +
+        (top + SAG + 40) + 'px;font-size:14px;color:#C9C6BD;';
+      s.textContent = '绳子还是空的 · 点左上角的 + 挂第一条';
+      cardsEl.appendChild(s);
+    }
+  } else if (emptyEl) {
+    emptyEl.remove();
+  }
+
+  for (let k = 0; k < shown; k++) {
+    const it = list[k], p = placeOf(k), c = cardHTML(it);
+    keep[it.id] = 1;
+    const tf = 'translate(' + Math.round(p.x - CARD_W / 2) + 'px, ' +
+               Math.round(p.y + SLOT_PAD) + 'px)';
+    const s = slots.get(it.id);
+
+    if (!s) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.style.transform = tf;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.id = it.id;
+      card.style.setProperty('--d', Math.round(120 + 260 * p.t + p.r * 90) + 'ms');
+      card.style.background = c.bg;
+      card.style.borderColor = it.doom ? '' : c.bd;
+      card.innerHTML = c.html;
+      slot.appendChild(card);
+      cardsEl.appendChild(slot);
+      slots.set(it.id, { slot: slot, card: card });
+      if (animateNew) {
+        (function (el) { requestAnimationFrame(function () { el.classList.add('in'); }); })(card);
+      }
+    } else {
+      s.slot.style.transform = tf;                 // 已有的卡：位置变了，CSS 自动补间
+      s.card.classList.toggle('doom', !!it.doom);
+      s.card.style.borderColor = it.doom ? '' : c.bd;
+      s.card.style.background = c.bg;
+      s.card.innerHTML = c.html;
+    }
+  }
+
+  slots.forEach(function (s, id) {
+    if (keep[id]) return;
+    const el = s.slot;
+    el.style.transition = 'transform 300ms ease, opacity 300ms ease';
+    el.style.opacity = '0';
+    el.style.transform = el.style.transform + ' translateY(56px)';
+    setTimeout(function () { el.remove(); }, 320);
+    slots.delete(id);
+  });
+
+  renderHud();
+}
+
+function rebuildAll() {
+  cardsEl.innerHTML = '';
+  slots.clear();
+  sync(true);
+}
+
+function renderHud() {
+  const c = S.counts || {};
+  hud.innerHTML = '在杆 <b>' + (c.hanging || 0) + '</b> · 采用 <b>' + (c.closet || 0) +
+    '</b> · 搁置 <b>' + (c.expired || 0) + '</b> · 垃圾桶 <b>' + (c.trash || 0) +
+    '</b>' + (S.demo ? ' · <b>演示填充</b>' : '');
+}
+
+function revealTo(target, dur) {
+  cancelAnimationFrame(revealRaf);
+  const from = parseFloat(revealRect.getAttribute('width')) || 0;
+  const t0 = performance.now();
+  const ease = function (p) { return 1 - Math.pow(1 - p, 3); };
+  const step = function (now) {
+    const p = Math.min(1, (now - t0) / dur);
+    revealRect.setAttribute('width', Math.round(from + (target - from) * ease(p)));
+    if (p < 1) revealRaf = requestAnimationFrame(step);
+  };
+  revealRaf = requestAnimationFrame(step);
+}
+
+async function expand() {
+  showing = true;
+  editingId = null;
+  document.body.classList.add('showing');
+  try { S = await window.rail.load(); } catch (e) { if (window.rail) window.rail.log('载入失败 ' + e.message); }
+  rebuildAll();
+  anchors.style.opacity = 0;
+  revealRect.setAttribute('width', 0);
+  void document.body.offsetWidth;
+  revealTo(W, 380);
+  setTimeout(function () { anchors.style.opacity = 1; }, 350);
+  if (window.rail) {
+    window.rail.log('展开 ' + (S.counts.hanging || 0) + ' 条在杆 / 容量 ' + S.capacity +
+                    ' / ' + ROPE_COUNT + ' 绳');
+  }
+}
+
+function collapse() {
+  showing = false;
+  document.body.classList.remove('showing');
+  const all = cardsEl.querySelectorAll('.card');
+  for (let i = 0; i < all.length; i++) { all[i].classList.remove('in'); all[i].classList.add('out'); }
+  revealTo(0, 200);
+  anchors.style.opacity = 0;
+}
+
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function () { toastEl.classList.remove('on'); }, 2000);
+}
+
+/* ---------------------------------------------------- 拖拽 */
+
+document.addEventListener('pointerdown', function (e) {
+  const card = e.target.closest && e.target.closest('.card');
+  if (!card || !showing || editingId) return;
+  e.preventDefault();
+  try { card.setPointerCapture(e.pointerId); } catch (err) {}
+  drag = { id: card.dataset.id, card: card, x0: e.clientX, y0: e.clientY, moved: false, dx: 0, dy: 0 };
+  if (window.rail) window.rail.setIgnore(false);
+});
+
+document.addEventListener('pointermove', function (e) {
+  if (!drag && EDGE_TRIGGER) checkEdge(e.clientY);
+  if (!showing) { if (window.rail) window.rail.setIgnore(true); return; }
+
+  if (drag) {
+    const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    drag.dx = dx; drag.dy = dy;
+    if (!drag.moved && Math.hypot(dx, dy) > 5) {
+      drag.moved = true;
+      drag.card.classList.remove('in', 'back');
+      drag.card.classList.add('dragging');
+      document.body.classList.add('dragging');
+    }
+    if (drag.moved) {
+      const rot = Math.max(-11, Math.min(11, dx * 0.022));
+      drag.card.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) rotate(' + rot + 'deg) scale(1.045)';
+      const r = box.getBoundingClientRect();
+      const over = e.clientX > r.left - 90 && e.clientX < r.right + 90 &&
+                   e.clientY > r.top - 90 && e.clientY < r.bottom + 90;
+      box.classList.toggle('hot', over);
+    }
+    if (window.rail) window.rail.setIgnore(false);
+    return;
+  }
+
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const hot = !!(el && el.closest && (el.closest('.card') || el.closest('#add')));
+  if (window.rail) window.rail.setIgnore(!hot);
+});
+
+document.addEventListener('pointerup', function (e) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  document.body.classList.remove('dragging');
+  box.classList.remove('hot');
+  d.card.classList.remove('dragging');
+
+  if (!d.moved) { openInlineEditor(d.id, d.card); return; }
+
+  const r = box.getBoundingClientRect();
+  const over = e.clientX > r.left - 90 && e.clientX < r.right + 90 &&
+               e.clientY > r.top - 90 && e.clientY < r.bottom + 90;
+
+  if (over && d.id.indexOf('__demo') !== 0) {
+    const sr = d.card.getBoundingClientRect();
+    const tx = r.left + r.width / 2 - (sr.left + sr.width / 2);
+    const ty = r.top + r.height / 2 - (sr.top + sr.height / 2);
+    d.card.classList.add('gone');
+    d.card.style.transform = 'translate(' + (d.dx + tx) + 'px, ' + (d.dy + ty) + 'px) scale(.22) rotate(10deg)';
+    setTimeout(function () {
+      window.rail.archiveCard({ id: d.id });
+      toast('已放进收藏夹');
+    }, 320);
+  } else {
+    d.card.classList.add('back');
+    d.card.style.transform = 'translate(0px, 0px) rotate(0deg) scale(1)';
+    setTimeout(function () {
+      d.card.classList.remove('back');
+      d.card.style.transform = '';
+    }, 360);
+  }
+});
+
+document.addEventListener('pointercancel', function () {
+  if (!drag) return;
+  drag.card.classList.remove('dragging');
+  drag.card.style.transform = '';
+  drag = null;
+  document.body.classList.remove('dragging');
+  box.classList.remove('hot');
+});
+
+/* ---------------------------------------------------- 新增与编辑 */
+
+addBtn.addEventListener('pointerdown', function (e) {
+  e.stopPropagation();
+  if (showing && window.rail) window.rail.setIgnore(false);
+});
+
+addBtn.addEventListener('click', function (e) {
+  e.stopPropagation();
+  if (!showing || !window.rail) return;
+  const top = ropeTopOf(0), t = 0.5 / PER_ROW;
+  const x = W * t, y = yOnRope(top, t);
+  window.rail.log('点击新增');
+  window.rail.openEditor({
+    id: '', mode: 'new', text: '', source: '', clip: 'blue',
+    rect: { left: x - CARD_W / 2, top: y + SLOT_PAD, width: CARD_W, height: CARD_H }
+  });
+});
+
+function openInlineEditor(id, card) {
+  if (!window.rail || id.indexOf('__demo') === 0) return;
+  const it = S.ideas.filter(function (x) { return x.id === id; })[0];
+  if (!it) return;
+  const r = card.getBoundingClientRect();
+  editingId = id;
+  card.classList.add('editing');
+  window.rail.log('点击编辑 ' + id);
+  window.rail.openEditor({
+    id: id, mode: 'edit', text: it.text, source: it.source, clip: it.clip,
+    rect: { left: r.left, top: r.top, width: r.width, height: r.height }
+  });
+}
+
+if (window.rail) {
+  window.rail.onExpand(function () { expand(); });
+  window.rail.onCollapse(collapse);
+  // 主进程每次改完数据都会推一份新的过来，这里就地增量更新
+  window.rail.onDataChanged(function (p) {
+    S = p;
+    if (showing) sync(true);
+    if (window.rail) window.rail.log('数据更新 → 在杆 ' + (S.counts.hanging || 0) + ' 条');
+  });
+  window.rail.onEditClosed(function () {
+    if (editingId) {
+      const s = slots.get(editingId);
+      if (s) s.card.classList.remove('editing');
+      editingId = null;
+    }
+  });
+} else {
+  document.body.style.background = '#EDEBE6';
+  S.demo = true; S.capacity = 21;
+  setTimeout(expand, 150);
+}
+
+/* ---------------------------------------------------- 顶边：唤出 / 撤回 */
+
+function checkEdge(y) {
+  if (y <= EDGE_BAND) {
+    edge.classList.add('on');
+    if (edgeArmed && !edgeTimer) {
+      edgeTimer = setTimeout(function () {
+        edgeTimer = 0;
+        edgeArmed = false;
+        edge.classList.remove('on');
+        if (window.rail) {
+          window.rail.log('顶边触发 ' + (showing ? '撤回' : '唤出'));
+          window.rail.toggle();
+        }
+      }, EDGE_DWELL);
+    }
+  } else {
+    if (y > EDGE_BAND + EDGE_REARM) edgeArmed = true;
+    if (edgeTimer) { clearTimeout(edgeTimer); edgeTimer = 0; }
+    edge.classList.remove('on');
+  }
+}
+
+document.addEventListener('mouseleave', function () { if (window.rail) window.rail.setIgnore(true); });
+window.addEventListener('resize', function () { if (showing) sync(false); });
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>编辑灵感</title>
+<style>
+  html,body{margin:0;height:100%;background:transparent;overflow:hidden;
+    font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;}
+  .shell{
+    height:100%;box-sizing:border-box;
+    background:#FFFFFF;border:1.5px solid #85B7EB;border-radius:12px;
+    display:flex;flex-direction:column;overflow:hidden;
+    box-shadow:0 12px 32px rgba(50,45,35,.18);
+  }
+  .clip{position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+        width:13px;height:22px;border-radius:3px;background:#5F5E5A;}
+  .head{padding:14px 15px 0;display:flex;flex-direction:column;gap:6px;}
+  .head b{font-size:13px;font-weight:600;color:#2C2C2A;}
+  .lbl{font-size:10.5px;color:#B4B2A9;letter-spacing:.03em;}
+  #source{
+    border:none;outline:none;background:#F7F6F3;border-radius:6px;
+    padding:6px 9px;font-family:inherit;font-size:11.5px;color:#6E6C66;
+  }
+  textarea{
+    flex:1;border:none;outline:none;resize:none;background:transparent;
+    padding:8px 15px 4px;font-family:inherit;font-size:13.5px;line-height:1.62;color:#2C2C2A;
+  }
+  .foot{display:flex;align-items:center;gap:8px;padding:6px 13px 11px;font-size:10.5px;color:#C4C1B8;}
+  .foot .sp{margin-left:auto;}
+  button{
+    font:inherit;font-size:11.5px;padding:5px 12px;border-radius:7px;
+    border:1px solid #D6D3CC;background:#FFF;color:#2C2C2A;cursor:pointer;
+  }
+  button:hover{border-color:#B8B4AA;background:#FBFAF8;}
+  button.primary{background:#2C2C2A;color:#FFF;border-color:#2C2C2A;}
+  button.del{color:#A32D2D;border-color:#E8B4B4;}
+  button.del:hover{background:#FCEBEB;border-color:#D98B8B;}
+</style>
+</head>
+<body>
+<span class="clip" id="clip"></span>
+<div class="shell">
+  <div class="head">
+    <b id="title">编辑这条灵感</b>
+    <span class="lbl">来源（自动抓取，可改）</span>
+    <input id="source" spellcheck="false" placeholder="Chrome · 某篇文章">
+  </div>
+  <textarea id="text" spellcheck="false" placeholder="写点什么…"></textarea>
+  <div class="foot">
+    <span>Ctrl+Enter 保存 · Esc 取消</span>
+    <span class="sp"></span>
+    <button id="trash" class="del">丢掉</button>
+    <button id="cancel">取消</button>
+    <button class="primary" id="save">保存</button>
+  </div>
+</div>
+<script>
+const src = document.getElementById('source');
+const text = document.getElementById('text');
+const clip = document.getElementById('clip');
+const title = document.getElementById('title');
+let cur = null;
+
+function save() {
+  if (!cur) return;
+  const t = text.value.trim();
+  if (!t) { text.focus(); return; }
+  const payload = { id: cur.id, text: t, source: src.value.trim() };
+  if (cur.mode === 'new') window.rail.addCard(payload);
+  else window.rail.saveCard(payload);
+}
+
+text.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
+  if (e.key === 'Escape') { e.preventDefault(); window.rail.closeEditor(); }
+});
+src.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
+  if (e.key === 'Escape') { e.preventDefault(); window.rail.closeEditor(); }
+});
+document.getElementById('save').onclick = save;
+document.getElementById('cancel').onclick = function () { window.rail.closeEditor(); };
+document.getElementById('trash').onclick = function () {
+  if (!cur || cur.mode === 'new') { window.rail.closeEditor(); return; }
+  window.rail.trashCard({ id: cur.id });
+};
+
+window.rail.onLoad(function (p) {
+  cur = p;
+  src.value = p.source || '';
+  text.value = p.text || '';
+  clip.style.background = p.clip || '#5F5E5A';
+  title.textContent = p.mode === 'new' ? '挂一条新灵感' : '编辑这条灵感';
+  document.getElementById('trash').style.display = p.mode === 'new' ? 'none' : '';
+  setTimeout(function () {
+    (p.mode === 'new' && !p.text ? text : text).focus();
+    text.setSelectionRange(text.value.length, text.value.length);
+  }, 60);
+  window.rail.log('编辑器载入 mode=' + (p.mode || 'edit') + ' id=' + p.id);
+});
+</script>
+</body>
+</html>
