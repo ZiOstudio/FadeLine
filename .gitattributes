@@ -10,6 +10,8 @@
 
 # 二进制，别做任何换行转换。
 *.png binary
+*.jpg binary
+*.jpeg binary
 *.ico binary
 *.exe binary
 *.zip binary

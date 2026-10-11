@@ -90,6 +90,41 @@
 
 ---
 
+## 效果预览
+
+九张状态图，全是 2560×1440 下的全屏实拍（同一批演示数据，桌面杂物已去掉）。点标题展开。
+
+<details>
+<summary><b>展开：九种状态一览</b></summary>
+<br>
+
+<table>
+<tr>
+<td align="center"><img src="docs/shots/01-empty.jpg" alt="刚打开：绳子空着" width="380"><br><sub>刚打开：绳子空着，点正上方的 <b>+</b> 挂第一条</sub></td>
+<td align="center"><img src="docs/shots/02-first-idea.jpg" alt="第一条灵感挂在绳子正中" width="380"><br><sub>第一条灵感：挂在绳子正中间</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/shots/03-centered.jpg" alt="没挂满时整组居中" width="380"><br><sub>没挂满时整组居中，颜色随年龄变深</sub></td>
+<td align="center"><img src="docs/shots/04-full.jpg" alt="挂满三根绳" width="380"><br><sub>挂满三根绳：1080p 是 10 格，2560×1440 是 21 格</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/shots/05-hover-focus.jpg" alt="悬停聚焦" width="380"><br><sub>鼠标停在哪根绳，哪根才亮，其余自动变淡</sub></td>
+<td align="center"><img src="docs/shots/06-edit-in-place.jpg" alt="就地编辑" width="380"><br><sub>轻点卡片就地改：丢掉 / 取消 / 保存 / 采用</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/shots/07-doom-hourglass.jpg" alt="待淘汰的沙漏" width="380"><br><sub>挂太久没动的会被标上沙漏，48 小时内碰一下还能救回来</sub></td>
+<td align="center"><img src="docs/shots/08-drag-to-adopt.jpg" alt="按住往下拖即采用" width="380"><br><sub>按住往下拖到收纳位＝采用，它就从绳上下来</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/shots/09-undo.jpg" alt="移动后可以撤销" width="380"><br><sub>移动之后 10 秒内可以撤销，手滑不怕</sub></td>
+<td align="center"><sub>数据都是 Markdown 文件，<br>不上传、不注册，<br>拷走就能带走。</sub></td>
+</tr>
+</table>
+
+</details>
+
+---
+
 ## 工作原理
 
 数据就是一堆 Markdown 文件，**没有数据库、没有私有格式**。每个条目都能单独打开、单独发送、单独备份。
