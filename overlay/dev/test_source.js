@@ -3,7 +3,7 @@ const cp = require('child_process');
 
 const DIR = __dirname + '/..';
 const cfg = JSON.parse(fs.readFileSync(DIR + '/config.json', 'utf8'));
-const SELF = ['electron', 'railbox', 'railbox-overlay', 'node', 'python', 'pythonw'];
+const SELF = ['electron', 'fadeline', 'fadeline-overlay', 'node', 'python', 'pythonw'];
 const BROWSER_SUFFIX = /\s*[-–—|·]\s*(Google Chrome|Microsoft\s*Edge|Mozilla Firefox|Brave|Opera|Vivaldi|Chromium)\s*$/i;
 
 function friendlySource(fg) {
@@ -75,10 +75,10 @@ const cases = [
   ['chrome', 'How to cook - Stack Overflow'],
   ['WeChat', '微信'],
   ['msedge', '某篇文章 - Microsoft Edge'],
-  ['Code', 'overlay.html - RailBox - Visual Studio Code'],
+  ['Code', 'overlay.html - FadeLine - Visual Studio Code'],
   ['Obsidian', '选题灵感箱 - Obsidian'],
   ['feishu', '飞书'],
-  ['electron', '晾衣杆'],
+  ['electron', '灵光一挂'],
   ['unknownapp', '某某']
 ];
 cases.forEach(function (c) {

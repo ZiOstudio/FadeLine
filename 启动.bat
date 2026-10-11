@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title 晾衣杆
+title 灵光一挂
 cd /d "%~dp0overlay"
 
 echo.
-echo   晾衣杆 · 灵感墙
+echo   灵光一挂 · 灵感墙
 echo   ============================================
 echo.
 

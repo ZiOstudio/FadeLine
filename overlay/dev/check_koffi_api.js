@@ -1,5 +1,5 @@
 /* 摸清 koffi 的传参方式，为 win32.js 定型。跑法：node check_koffi_api.js */
-const koffi = require('D:/RailBox/overlay/node_modules/koffi');
+const koffi = require('D:/FadeLine/overlay/node_modules/koffi');
 
 const user32 = koffi.load('user32.dll');
 const kernel32 = koffi.load('kernel32.dll');
@@ -69,4 +69,4 @@ try {
   }
 } catch (e) { say('进程路径查询失败: ' + e.message); }
 
-require('fs').writeFileSync('D:/RailBox/overlay/dev/_koffi_api_out.txt', out.join('\n'), 'utf8');
+require('fs').writeFileSync('D:/FadeLine/overlay/dev/_koffi_api_out.txt', out.join('\n'), 'utf8');

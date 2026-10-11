@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 """生成 README 用的头图：截屏 → 裁到绳子区域 → 缩小。
 
-用法：先开启 config.json 的 demoMode 并重启程序让绳子挂满，然后
-      python dev/make_readme_art.py
+用法：
+  1. 开启 config.json 的 demoMode（挂满 21 张假卡片），重启程序
+  2. 把桌面弄干净 —— 越干净越好：
+     · 用 HideDesktopApps 之类的工具收掉桌面图标（或右键桌面 → 查看 → 取消勾选「显示桌面图标」）
+     · 按 Win+D 最小化所有窗口
+  3. python dev/make_readme_art.py
+  4. 记得把 demoMode 改回 false 并重启
 
 这个脚本要处理两件容易被忽略的事，否则截出来的永远是桌面：
 

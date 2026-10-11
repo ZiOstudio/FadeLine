@@ -5,7 +5,7 @@
   "secondaryHotkey": "Control+Alt+Space",
 
   "vault": "",
-  "_vault": "四个文件夹所在的根目录。留空 = 用「文档\\晾衣杆」。",
+  "_vault": "四个文件夹所在的根目录。留空 = 用「文档\\灵光一挂」。",
 
   "pythonPath": "",
   "_pythonPath": "留空会在启动时自动探测。抓来源和全屏检测需要它，探测不到就填 python.exe 的绝对路径。",

@@ -27,13 +27,18 @@ $dist   = Join-Path $root 'dist'
 
 $pkg = Read-JsonUtf8 (Join-Path $app 'package.json')
 $ver = $pkg.version
-$name = 'RailBox'
+$name = 'FadeLine'
 if ($pkg.build -and $pkg.build.productName) { $name = $pkg.build.productName }
 
 $out    = Join-Path $dist $name
 $appDst = Join-Path $out 'resources\app'
 $exeSrc = Join-Path $app 'node_modules\electron\dist\electron.exe'
-$zip    = Join-Path $dist ("$name-$ver-portable.zip")
+
+# The zip filename must be ASCII. GitHub strips non-ASCII characters from release
+# asset names, so "灵光一挂-0.1.0-portable.zip" would show up as "-0.1.0-portable.zip".
+# The folder and the exe inside the zip keep the Chinese product name - only the
+# outer filename has to be ASCII.
+$zip = Join-Path $dist ("FadeLine-$ver-portable.zip")
 
 Write-Host ("  product : " + $name)
 Write-Host ("  version : " + $ver)

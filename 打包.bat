@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title 打包 · 晾衣杆
+title 打包 · 灵光一挂
 cd /d "%~dp0overlay"
 
 echo.
-echo   打包「晾衣杆」
+echo   打包「灵光一挂」
 echo   ================================================
 echo.
 

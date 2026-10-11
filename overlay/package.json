@@ -1,7 +1,8 @@
 {
-  "name": "railbox-overlay",
+  "name": "fadeline-overlay",
+  "productName": "灵光一挂",
   "version": "0.1.0",
-  "description": "晾衣杆 · 把灵感挂到一根绳子上，让时间替你淘汰",
+  "description": "灵光一挂 · 把灵感挂到一根绳子上，让时间替你淘汰",
   "main": "main.js",
   "license": "MIT",
   "scripts": {
@@ -17,8 +18,8 @@
     "electron-builder": "^25.0.0"
   },
   "build": {
-    "appId": "com.zio.railbox",
-    "productName": "晾衣杆",
+    "appId": "com.zio.fadeline",
+    "productName": "灵光一挂",
     "directories": {
       "output": "../dist",
       "buildResources": "."
@@ -47,7 +48,7 @@
       ]
     },
     "portable": {
-      "artifactName": "晾衣杆-${version}.exe"
+      "artifactName": "FadeLine-${version}.exe"
     }
   }
 }

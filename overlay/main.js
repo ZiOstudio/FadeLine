@@ -24,7 +24,7 @@ if (!NATIVE_OK) log('原生模块不可用，来源识别与全屏检测将回�
 
 /* ------------------------------------------------ 配置
 
-   首次运行会自己生成 config.json：数据目录默认落到「文档\晾衣杆」，
+   首次运行会自己生成 config.json：数据目录默认落到「文档\灵光一挂」，
    Python 自动探测。目标是 clone 下来双击就能跑，什么都不用手配。 */
 
 const CFG_PATH = path.join(DATA_DIR, 'config.json');
@@ -65,7 +65,7 @@ const CFG_DEFAULTS = {
   _secondaryHotkey: '备用热键，能注册上就注册。',
 
   vault: '',
-  _vault: '四个文件夹所在的根目录。首次运行默认是「文档\\晾衣杆」。'
+  _vault: '四个文件夹所在的根目录。首次运行默认是「文档\\灵光一挂」。'
         + '移动或改名后要跟着改这里，否则绳子会是空的。',
 
   pythonPath: '',
@@ -116,7 +116,7 @@ function defaultVault() {
   let base;
   try { base = app.getPath('documents'); }
   catch (e) { base = path.join(require('os').homedir(), 'Documents'); }
-  return path.join(base, '晾衣杆');
+  return path.join(base, '灵光一挂');
 }
 
 /* 自动找 Python。跳过 WindowsApps 下的应用商店占位器
@@ -146,7 +146,7 @@ function detectPython() {
 // 用户没配的，这里补上
 if (!(typeof rawCfg.vault === 'string' && rawCfg.vault.trim())) cfg.vault = defaultVault();
 if (!cfg.pythonPath) cfg.pythonPath = detectPython();
-if (!cfg.backupDir) cfg.backupDir = path.join(path.dirname(cfg.vault), '_晾衣杆备份');
+if (!cfg.backupDir) cfg.backupDir = path.join(path.dirname(cfg.vault), '_灵光一挂备份');
 
 let VAULT = cfg.vault;   // 可被「重新选择数据目录」改写
 
@@ -190,7 +190,7 @@ function computeCapacity() {
 
 /* ------------------------------------------------ 前台来源 */
 
-const SELF_APPS = ['electron', 'railbox', 'railbox-overlay', 'node', 'python', 'pythonw'];
+const SELF_APPS = ['electron', 'fadeline', 'fadeline-overlay', 'node', 'python', 'pythonw'];
 const BROWSER_SUFFIX = /\s*[-–—|·]\s*(Google Chrome|Microsoft\s*Edge|Mozilla Firefox|Brave|Opera|Vivaldi|Chromium)\s*$/i;
 const SITE_RULES = [
   [/\bon X\b/, 'X'],
@@ -522,7 +522,7 @@ function selfCheck() {
 // 开机后会启动一个空的 Electron，用户还完全不知道发生了什么。
 function startupLnkPath() {
   return path.join(app.getPath('appData'),
-    'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', '晾衣杆.lnk');
+    'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', '灵光一挂.lnk');
 }
 
 function isAutoStartOn() {
@@ -551,7 +551,7 @@ function setAutoStart(on, cb) {
     '$s.Arguments = ' + JSON.stringify(__dirname),
     '$s.WorkingDirectory = ' + JSON.stringify(__dirname),
     '$s.WindowStyle = 1',
-    '$s.Description = "晾衣杆 · 灵感墙"',
+    '$s.Description = "灵光一挂 · 灵感墙"',
     '$s.Save()'
   ].join('; ');
   const enc = Buffer.from(script, 'utf16le').toString('base64');
@@ -602,7 +602,7 @@ function buildTrayMenu() {
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, 'tray.png'));
   tray = new Tray(icon);
-  tray.setToolTip('晾衣杆 · 灵感箱');
+  tray.setToolTip('灵光一挂 · 灵感箱');
   tray.setContextMenu(buildTrayMenu());
   tray.on('click', function () { toggle(); });
   log('托盘已创建（开机自启：' + (isAutoStartOn() ? '开' : '关') + '）');

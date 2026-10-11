@@ -1,5 +1,5 @@
 /**
- * 晾衣杆 · 布局与渲染纯函数
+ * 灵光一挂 · 布局与渲染纯函数
  *
  * 不依赖 DOM，两端通用：
  *   浏览器：<script src="layout.js"></script> 后用全局 Layout
