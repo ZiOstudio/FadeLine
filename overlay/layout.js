@@ -13,6 +13,7 @@
   const CARD_W = 248, CARD_H = 224, ROW_GAP = 34, SLOT_PAD = 16;
   const MAX_ROPES_HARD = 3;
   const FOLDER_MARGIN = 256;   // 底部文件收藏夹 + 边距预留
+  const EXPIRE_DAYS = 14;      // 与 store.js 的 EXPIRE_DAYS 必须一致，单测里有交叉校验
 
   /**
    * 由屏幕逻辑尺寸推布局。
@@ -47,13 +48,38 @@
     };
   }
 
-  /* 按晾晒天数给纸片上色：0 天纯白，20 天到最深 */
+  /**
+   * 纸张褪色。返回纸面 / 正文 / 次要信息 / 边框四种颜色，外加进度 t。
+   *
+   * 两个关键决定：
+   *
+   * 1) 调色板是「淡奶油黄 → 陈年琥珀」，不是「纯白 → 灰」。
+   *    新纸本来就不是白的。从纯白起步，梯度会被浪费在水洗一样看不出差别的浅色区，
+   *    所以第一张就得是明显的暖黄，最后一张走到深琥珀。
+   *    颜色在 HSL 空间插值（不是 RGB）—— RGB 插值经过的是发灰的中间色，
+   *    HSL 插值始终留在"纸的黄"这条色相带上，看起来才像同一张纸在变老。
+   *
+   * 2) 曲线用 sqrt，不是线性。
+   *    绳上卡片的实际年龄跨度通常只有 7 天左右（一天记 3 条 × 21 格就铺满了）。
+     *    线性铺满 14 天的话，一条满绳只走完 50%，下半段全挤在一起，看不出层次。
+     *    sqrt 让前 3 天就走完 46%，短绳也能看到清晰的梯度；
+     *    长寿的卡片继续缓慢加深，走满 14 天刚好到最深 —— 颜色最深 = 即将被淘汰。
+     *
+     *    亮度跨度必须够宽（这里 89% → 66%，23 个点）：sqrt 末端趋平，
+     *    跨度太窄时最后几天四舍五入后会变成同一个颜色，梯度就断了。单测盯着这一点。 */
   function aging(age) {
-    const t = Math.min(age / 20, 1), m = function (a, b) { return Math.round(a + (b - a) * t); };
+    const t = Math.sqrt(Math.min(Math.max(age, 0) / EXPIRE_DAYS, 1));
+    const mix = function (h1, s1, l1, h2, s2, l2) {
+      return 'hsl(' + Math.round(h1 + (h2 - h1) * t) + ' ' +
+                      Math.round(s1 + (s2 - s1) * t) + '% ' +
+                      Math.round(l1 + (l2 - l1) * t) + '%)';
+    };
     return {
-      bg: 'rgb(' + m(255, 214) + ',' + m(255, 210) + ',' + m(255, 201) + ')',
-      fg: 'rgb(' + m(44, 140) + ',' + m(44, 136) + ',' + m(42, 128) + ')',
-      bd: 'rgb(' + m(228, 197) + ',' + m(225, 191) + ',' + m(218, 181) + ')'
+      t: t,
+      bg:  mix(46, 72, 89,  38, 45, 66),   // 纸面：浅黄油 → 陈年琥珀
+      fg:  mix(44, 18, 20,  34, 42, 25),   // 正文：深暖灰 → 深褐墨（墨迹变淡）
+      dim: mix(44, 14, 45,  35, 32, 33),   // 来源与天数等次要信息
+      bd:  mix(45, 42, 81,  39, 40, 58)    // 边框
     };
   }
 
@@ -83,7 +109,7 @@
 
   return {
     CARD_W: CARD_W, CARD_H: CARD_H, ROW_GAP: ROW_GAP, SLOT_PAD: SLOT_PAD,
-    MAX_ROPES_HARD: MAX_ROPES_HARD,
+    MAX_ROPES_HARD: MAX_ROPES_HARD, EXPIRE_DAYS: EXPIRE_DAYS,
     computeLayout: computeLayout, ropePathFor: ropePathFor,
     placeOf: placeOf, aging: aging, sandglass: sandglass
   };

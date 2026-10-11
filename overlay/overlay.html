@@ -16,6 +16,17 @@
     transition:transform 340ms cubic-bezier(.22,1,.36,1), opacity .25s ease;
     pointer-events:none;
   }
+  /* 微风：卡片像真挂在绳上那样极缓慢地摆。
+     摆动挂在 .sway 包装层上、而不是 .card 上 —— .card 的 transform 归拖拽用，
+     两者共用会互相覆盖（当年 animation-fill-mode:forwards 就是踩了这个坑）。
+     只在展开时跑动画：绳子收起才是常态，那时完全不产生合成开销。 */
+  .sway{transform-origin:50% -18px;}
+  body.showing .sway{animation:breeze 6.4s ease-in-out infinite;}
+  @keyframes breeze{
+    0%,100%{transform:rotate(-.5deg);}
+    50%    {transform:rotate(.5deg);}
+  }
+  body.dragging .sway{animation:none;}
   .card{
     position:relative;
     width:248px;height:224px;box-sizing:border-box;
@@ -45,9 +56,9 @@
   .card.doom{border-style:dashed;border-color:#D9B08C;}
 
   .clip{
-    position:absolute;top:-21px;left:50%;transform:translateX(-50%);
-    width:15px;height:25px;border-radius:3px;
-    box-shadow:0 1px 1.5px rgba(60,55,45,.18);
+    position:absolute;top:-25px;left:50%;transform:translateX(-50%);
+    width:19px;height:37px;
+    filter:drop-shadow(0 1.5px 2px rgba(60,55,45,.24));
   }
   .src{font-size:12.5px;color:#9C9A93;margin-bottom:10px;display:flex;align-items:center;gap:7px;
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -149,7 +160,7 @@
 <svg id="ropeSvg" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <filter id="ropeShadow" x="-5%" y="-160%" width="110%" height="600%">
-      <feDropShadow dx="0" dy="3" stdDeviation="2.6" flood-color="#5A4A22" flood-opacity="0.26"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#5A4A22" flood-opacity="0.20"/>
     </filter>
     <clipPath id="reveal" clipPathUnits="userSpaceOnUse">
       <rect id="revealRect" x="0" y="0" width="0" height="100%"/>
@@ -258,7 +269,7 @@ function buildRopes() {
   let html = '';
   for (let r = 0; r < ROPE_COUNT; r++) {
     html += '<path data-rope="' + r + '" d="' + ropePathFor(ropeTopOf(r)) +
-            '" fill="none" stroke="#C9A85E" stroke-width="7" stroke-linecap="round" filter="url(#ropeShadow)"/>';
+            '" fill="none" stroke="#C9A85E" stroke-width="4.6" stroke-linecap="round" filter="url(#ropeShadow)"/>';
   }
   wrap.innerHTML = html;
   const twist = [];
@@ -272,7 +283,7 @@ function buildRopes() {
                'L' + (q.x + hx).toFixed(1) + ' ' + (q.y - vy).toFixed(1));
     }
     twist.push('<path data-rope="' + r + '" d="' + seg.join('') +
-               '" fill="none" stroke="#9C7E36" stroke-width="1.8" stroke-linecap="round" opacity="0.9"/>');
+               '" fill="none" stroke="#9C7E36" stroke-width="1.15" stroke-linecap="round" opacity="0.9"/>');
   });
   wrap.innerHTML += twist.join('');
   let a = '';
@@ -301,6 +312,20 @@ function placeOf(k) {
   return L.placeOf(k, W, PER_ROW, ROPE_TOP, SAG, ROW_STRIDE);
 }
 
+/* 一个更像真夹子的 SVG 夹子：柱面明暗 + 中缝 + 上下两道箍 + 转轴 */
+function clipSVG(hex) {
+  return '<svg class="clip" viewBox="0 0 20 38" style="color:' + hex + '">' +
+    '<rect x="2" y="2" width="16" height="34" rx="6.5" fill="currentColor"/>' +
+    '<rect x="4" y="3" width="4.2" height="32" rx="2.1" fill="rgba(255,255,255,.24)"/>' +
+    '<rect x="13.4" y="3" width="3.2" height="32" rx="1.6" fill="rgba(0,0,0,.14)"/>' +
+    '<rect x="9.1" y="6" width="1.8" height="26" rx=".9" fill="rgba(0,0,0,.22)"/>' +
+    '<rect x="4.6" y="9.6" width="10.8" height="1.7" rx=".85" fill="rgba(255,255,255,.36)"/>' +
+    '<rect x="4.6" y="26.6" width="10.8" height="1.7" rx=".85" fill="rgba(255,255,255,.26)"/>' +
+    '<circle cx="10" cy="18.4" r="1.7" fill="rgba(0,0,0,.28)"/>' +
+    '<circle cx="10" cy="18.4" r=".7" fill="rgba(255,255,255,.34)"/>' +
+    '</svg>';
+}
+
 function cardHTML(it) {
   const st = aging(it.age);
   const ci = CLIPNAME.indexOf(it.clip) >= 0 ? CLIPNAME.indexOf(it.clip) : 1;
@@ -311,13 +336,14 @@ function cardHTML(it) {
     foot = '<div class="sg">' + sandglass(hrs / 48, hrs <= 12) +
            (hrs <= 12 ? '<span class="urgent">' + hrs + 'h</span>' : '') + '</div>';
   } else {
-    foot = '<div class="age">' + it.age + ' 天</div>';
+    foot = '<div class="age" style="color:' + st.dim + '">' + it.age + ' 天</div>';
   }
   return {
     bg: st.bg, bd: st.bd,
     html:
-      '<span class="clip" style="background:' + hex + '"></span>' +
-      '<div class="src"><span class="dot" style="background:' + hex + '"></span>' +
+      clipSVG(hex) +
+      '<div class="src" style="color:' + st.dim + '">' +
+        '<span class="dot" style="background:' + hex + '"></span>' +
         esc(it.source || '未知来源') + '</div>' +
       '<div class="txt" style="color:' + st.fg + '">' + esc(it.text) + '</div>' +
       '<div class="foot">' + foot + '<div class="hintbar">' +
@@ -362,6 +388,12 @@ function sync(animateNew) {
       const slot = document.createElement('div');
       slot.className = 'slot';
       slot.style.transform = tf;
+      const sway = document.createElement('div');
+      sway.className = 'sway';
+      // 周期和相位各自随机 —— 21 张卡片整齐划一就不像风，像节拍器。
+      // 负延迟让动画从周期的任意位置开始。
+      sway.style.animationDelay = (-Math.random() * 6).toFixed(2) + 's';
+      sway.style.animationDuration = (5.4 + Math.random() * 2.4).toFixed(2) + 's';
       const card = document.createElement('div');
       card.className = 'card';
       card.dataset.id = it.id;
@@ -370,7 +402,8 @@ function sync(animateNew) {
       card.style.background = c.bg;
       card.style.borderColor = it.doom ? '' : c.bd;
       card.innerHTML = c.html;
-      slot.appendChild(card);
+      sway.appendChild(card);
+      slot.appendChild(sway);
       cardsEl.appendChild(slot);
       slots.set(it.id, { slot: slot, card: card, rope: p.r });
       if (animateNew) {

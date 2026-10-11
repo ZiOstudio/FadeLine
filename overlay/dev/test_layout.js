@@ -72,11 +72,61 @@ t('placeOf: 第二根绳整体比第一根旧（y 更靠下）', function () {
   assert.ok(a.y < b.y);
 });
 
-t('aging: 0 天纯白，20 天最深，10 天在中间', function () {
-  const a = L.aging(0), b = L.aging(20), c = L.aging(10);
-  assert.strictEqual(a.bg, 'rgb(255,255,255)');
-  assert.notStrictEqual(a.bg, b.bg);
-  assert.ok(c.bg !== a.bg && c.bg !== b.bg);
+t('aging: 0 天是明显的浅黄油（不是纯白），14 天到陈年琥珀', function () {
+  assert.strictEqual(L.aging(0).bg, 'hsl(46 72% 89%)');
+  assert.strictEqual(L.aging(14).bg, 'hsl(38 45% 66%)');
+  assert.strictEqual(L.aging(30).bg, L.aging(14).bg, '超过 14 天要夹住');
+  assert.strictEqual(L.aging(-3).bg, L.aging(0).bg, '负数要夹住');
+});
+
+t('aging: sqrt 曲线 —— 前 3 天就走完 46%，短绳也看得出层次', function () {
+  assert.strictEqual(L.aging(0).t, 0);
+  assert.ok(Math.abs(L.aging(3).t - 0.4629) < 0.005, '3 天 t=' + L.aging(3).t);
+  assert.ok(Math.abs(L.aging(7).t - 0.7071) < 0.005, '7 天 t=' + L.aging(7).t);
+  assert.strictEqual(L.aging(14).t, 1);
+});
+
+t('aging: 亮度随年龄严格递减，跨度至少 20 个点（否则末端梯度会断）', function () {
+  const light = function (c) { return parseInt(c.match(/(\d+)%\)$/)[1], 10); };
+  let prev = 101;
+  for (let d = 0; d <= 14; d++) {
+    const l = light(L.aging(d).bg);
+    assert.ok(l < prev, d + ' 天的亮度 ' + l + ' 应严格小于 ' + prev + '（四舍五入后撞车说明跨度不够）');
+    prev = l;
+  }
+  const span = light(L.aging(0).bg) - light(L.aging(14).bg);
+  assert.ok(span >= 20, '首尾亮度跨度只有 ' + span + ' 个点，梯度会看不出层次');
+});
+
+t('aging: 相邻每一天颜色都必须不同（梯度看得见）', function () {
+  for (let d = 0; d < 14; d++) {
+    assert.notStrictEqual(L.aging(d).bg, L.aging(d + 1).bg, d + '→' + (d + 1) + ' 天颜色相同');
+  }
+});
+
+t('aging: 最深处的正文对比度仍达 WCAG AA（≥4.5）', function () {
+  const lum = function (hsl) {
+    const m = hsl.match(/(\d+)\s+(\d+)%\s+(\d+)%/);
+    const h = +m[1] / 360, s = +m[2] / 100, l = +m[3] / 100;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h * 6) % 2 - 1));
+    const mm = l - c / 2;
+    const seg = Math.floor(h * 6);
+    let r = 0, g = 0, b = 0;
+    if (seg === 0) { r = c; g = x; } else if (seg === 1) { r = x; g = c; }
+    else if (seg === 2) { g = c; b = x; } else if (seg === 3) { g = x; b = c; }
+    else if (seg === 4) { r = x; b = c; } else { r = c; b = x; }
+    const f = function (v) { v += mm; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  };
+  const a = L.aging(14);
+  const ratio = (lum(a.bg) + 0.05) / (lum(a.fg) + 0.05);
+  assert.ok(ratio >= 4.5, '最深处的对比度只有 ' + ratio.toFixed(2));
+});
+
+t('aging: 渐变跨度与 store.js 的 EXPIRE_DAYS 一致（防止两边漂移）', function () {
+  const store = require('D:/RailBox/overlay/store.js');
+  assert.strictEqual(L.EXPIRE_DAYS, store.EXPIRE_DAYS);
 });
 
 t('sandglass: 满沙只有上腔，空沙只有下腔', function () {
@@ -104,4 +154,4 @@ t('ropePathFor: 二次贝塞尔控制点 y = top + 2*sag', function () {
 
 out.push('');
 out.push('通过 ' + pass + ' / 失败 ' + fail);
-fs.writeFileSync('D:/RailBox/overlay/_test_layout_out.txt', out.join('\n'), 'utf8');
+fs.writeFileSync('D:/RailBox/overlay/dev/_test_layout_out.txt', out.join('\n'), 'utf8');
