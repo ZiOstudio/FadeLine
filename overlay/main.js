@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, screen, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, globalShortcut, screen, ipcMain, shell, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
@@ -15,7 +15,8 @@ let cfg = {
   secondaryHotkey: 'Control+Alt+Space',
   pythonPath: 'D:\\Python\\Python3146\\python.exe',
   vault: 'D:\\OBSIDIAN\\Cangku\\选题灵感',
-  demoMode: false
+  demoMode: false,
+  gameProcesses: []
 };
 try {
   Object.assign(cfg, JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')));
@@ -26,7 +27,10 @@ const VAULT = cfg.vault;
 
 let overlay = null;
 let editor = null;
+let tray = null;
 let expanded = false;
+let hotkeyOn = false;
+let gameActive = false;
 let wa = { x: 0, y: 0, width: 0, height: 0 };
 
 /* ------------------------------------------------ 容量：由屏幕逻辑尺寸决定 */
@@ -185,6 +189,7 @@ function createOverlay() {
 }
 
 function showOverlay() {
+  if (gameActive) { log('游戏中，忽略唤起'); return; }
   if (!overlay || overlay.isDestroyed()) return;
   overlay.showInactive();
   overlay.setAlwaysOnTop(true, 'screen-saver');
@@ -250,20 +255,98 @@ function closeEditor() {
   if (editor && !editor.isDestroyed()) editor.close();
 }
 
+/* ------------------------------------------------ 托盘 */
+
+function createTray() {
+  const icon = nativeImage.createFromPath(path.join(__dirname, 'tray.png'));
+  tray = new Tray(icon);
+  tray.setToolTip('晾衣杆 · 灵感箱');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '展开 / 收起绳子    Ctrl+Alt+Q', click: function () { toggle(); } },
+    { type: 'separator' },
+    { label: '打开灵感箱', click: function () { try { shell.openPath(VAULT); } catch (e) {} } },
+    { label: '打开采用区', click: function () { try { shell.openPath(path.join(VAULT, '02-采用')); } catch (e) {} } },
+    { label: '打开搁置区', click: function () { try { shell.openPath(path.join(VAULT, '03-搁置')); } catch (e) {} } },
+    { label: '打开垃圾桶', click: function () { try { shell.openPath(path.join(VAULT, '04-垃圾桶')); } catch (e) {} } },
+    { type: 'separator' },
+    { label: '退出', click: function () { app.quit(); } }
+  ]));
+  tray.on('click', function () { toggle(); });
+  log('托盘已创建');
+}
+
+/* ------------------------------------------------ 游戏 / 全屏检测 */
+
+function registerHotkeys() {
+  if (hotkeyOn) return;
+  hotkeyOn = globalShortcut.register(cfg.hotkey, function () { log('★ ' + cfg.hotkey); toggle(); });
+  if (hotkeyOn) log('热键已注册 ' + cfg.hotkey);
+  if (hotkeyOn && cfg.secondaryHotkey) {
+    globalShortcut.register(cfg.secondaryHotkey, function () { log('★ ' + cfg.secondaryHotkey); toggle(); });
+  }
+}
+
+function releaseHotkeys() {
+  if (!hotkeyOn) return;
+  globalShortcut.unregister(cfg.hotkey);
+  if (cfg.secondaryHotkey) globalShortcut.unregister(cfg.secondaryHotkey);
+  hotkeyOn = false;
+  log('热键已注销（全屏/游戏）');
+}
+
+// 一次 spawn 同时拿到全屏状态和前台进程名，base64 传避免编码问题。
+// 用 execFile（异步）而不是 execFileSync，避免每 2 秒阻塞主进程 150ms。
+function queryGameState(cb) {
+  cp.execFile(cfg.pythonPath, [path.join(__dirname, 'check_game.py')],
+    { timeout: 2500, encoding: 'ascii', windowsHide: true },
+    function (err, stdout) {
+      if (err || !stdout) return cb({ state: 5, app: '' });
+      try {
+        const d = JSON.parse(Buffer.from(String(stdout).trim(), 'base64').toString('utf8'));
+        cb({ state: d.state, app: String(d.app || '').toLowerCase() });
+      } catch (e) {
+        cb({ state: 5, app: '' });
+      }
+    });
+}
+
+let pollTimer = null;
+let pollLogged = false;
+function pollGame() {
+  queryGameState(function (g) {
+    if (!pollLogged) {
+      pollLogged = true;
+      log('游戏检测启动：state=' + g.state + ' app=' + g.app);
+    }
+    const list = (cfg.gameProcesses || []).map(function (x) { return String(x).toLowerCase(); });
+    const blacklisted = g.app && list.indexOf(g.app) >= 0;
+    const hard = g.state === 3 || g.state === 4 || g.state === 1 || g.state === 6 || blacklisted;
+    const soft = g.state === 2;
+
+    if (hard || soft) {
+      if (expanded) {
+        hideOverlay();
+        expanded = false;
+        log('检测到全屏/游戏 state=' + g.state + (blacklisted ? ' 黑名单:' + g.app : '') + '，收起浮层');
+      }
+      if (hard) { releaseHotkeys(); gameActive = true; }
+    } else {
+      if (!hotkeyOn) { registerHotkeys(); gameActive = false; }
+    }
+    pollTimer = setTimeout(pollGame, expanded ? 1500 : 3000);
+  });
+}
+
 /* ------------------------------------------------ 启动 */
 
 app.whenReady().then(function () {
   log('=== 启动 === 数据目录 ' + VAULT);
   createOverlay();
+  createTray();
   overlay.showInactive();
   expanded = false;
 
-  log('主热键 ' + cfg.hotkey + ' 注册 ' +
-      (globalShortcut.register(cfg.hotkey, function () { log('★ ' + cfg.hotkey); toggle(); }) ? '成功' : '失败'));
-  if (cfg.secondaryHotkey) {
-    log('备用热键 ' + cfg.secondaryHotkey + ' 注册 ' +
-        (globalShortcut.register(cfg.secondaryHotkey, function () { log('★ ' + cfg.secondaryHotkey); toggle(); }) ? '成功' : '失败'));
-  }
+  registerHotkeys();
 
   ipcMain.on('set-ignore', function (e, ignore) {
     if (overlay && !overlay.isDestroyed()) overlay.setIgnoreMouseEvents(!!ignore, { forward: true });
@@ -319,6 +402,7 @@ app.whenReady().then(function () {
   ipcMain.handle('data-load', function () { return payload(); });
 
   setTimeout(function () { log('首次自动展开'); showOverlay(); expanded = true; }, 700);
+  setTimeout(pollGame, 5000);   // 启动 5 秒后开始游戏检测轮询
 });
 
 app.on('will-quit', function () { globalShortcut.unregisterAll(); log('=== 退出 ==='); });

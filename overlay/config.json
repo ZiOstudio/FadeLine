@@ -13,6 +13,9 @@
   "demoMode": false,
   "_demoMode": "改成 true 会在界面上补一些假卡片，方便看满屏时三根绳和沙漏的样子，不写进磁盘。",
 
+  "gameProcesses": [],
+  "_gameProcesses": "无边框窗口运行的游戏检测不到，把它们的进程名（小写）填这里兜底，例如 [\"cs2.exe\", \"valorant.exe\"]。",
+
   "sourceNames": {
     "_说明": "进程名（小写）→ 显示名。抓到什么就显示什么，没匹配上就直接用进程名。",
     "chrome": "浏览器",
