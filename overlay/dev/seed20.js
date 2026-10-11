@@ -1,7 +1,18 @@
 const fs = require('fs');
-const store = require('D:/RailBox/overlay/store.js');
+const path = require('path');
+const store = require('../store.js');
 
-const VAULT = 'D:\\OBSIDIAN\\Cangku\\选题灵感';
+// 用法：node dev/seed20.js [数据目录]
+// 不给参数就试着从 ../config.json 读（也就是程序自己配的那个目录）。
+let VAULT = process.argv[2];
+if (!VAULT) {
+  try { VAULT = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config.json'), 'utf8')).vault; }
+  catch (e) {}
+}
+if (!VAULT) {
+  console.error('没拿到数据目录。用法：node dev/seed20.js <数据目录>');
+  process.exit(1);
+}
 const TARGET = 20;
 
 const TEXTS = [
@@ -51,4 +62,4 @@ out.push('年龄分布（新→旧）：' + h.map(function (i) { return i.ageDay
 out.push('带待淘汰标记：' + h.filter(function (i) { return i.doom_at; }).length + ' 条');
 out.push('容量 21 —— 现在 ' + h.length + ' 条，还差 ' + (21 - h.length) + ' 条触发首次淘汰');
 
-fs.writeFileSync('D:/RailBox/overlay/_seed_out.txt', out.join('\n'), 'utf8');
+fs.writeFileSync(path.join(__dirname, '_seed_out.txt'), out.join('\n'), 'utf8');

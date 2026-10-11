@@ -1,7 +1,7 @@
 const fs = require('fs');
 const cp = require('child_process');
 
-const DIR = 'D:/RailBox/overlay';
+const DIR = __dirname + '/..';
 const cfg = JSON.parse(fs.readFileSync(DIR + '/config.json', 'utf8'));
 const SELF = ['electron', 'railbox', 'railbox-overlay', 'node', 'python', 'pythonw'];
 const BROWSER_SUFFIX = /\s*[-–—|·]\s*(Google Chrome|Microsoft\s*Edge|Mozilla Firefox|Brave|Opera|Vivaldi|Chromium)\s*$/i;

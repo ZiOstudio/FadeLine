@@ -14,3 +14,9 @@ _*.txt
 # 打包
 dist/
 out/
+
+# 用户自己的配置（程序首次运行会自动生成）
+overlay/config.json
+
+# 测试产物
+overlay/dev/_*

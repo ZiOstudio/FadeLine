@@ -17,14 +17,14 @@ u32.SendInput.restype = wintypes.UINT
 
 ULONG_PTR = ctypes.c_ulonglong if ctypes.sizeof(ctypes.c_void_p) == 8 else ctypes.c_ulong
 
+INPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
+VK = {'escape': 0x1B, 'enter': 0x0D, 'tab': 0x09, 'space': 0x20,
+      'ctrl': 0x11, 'alt': 0x12, 'shift': 0x10, 'win': 0x5B}
 MOUSEEVENTF_MOVE = 0x0001
 MOUSEEVENTF_ABSOLUTE = 0x8000
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
-
-INPUT_KEYBOARD = 1
-KEYEVENTF_KEYUP = 0x0002
-VK = {'escape': 0x1B, 'enter': 0x0D, 'tab': 0x09, 'space': 0x20}
 
 SM_CXSCREEN, SM_CYSCREEN = 0, 1
 
@@ -65,6 +65,12 @@ def move_to(x, y, sw, sh):
                 MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE)
 
 
+OUTPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
+VK = {'escape': 0x1B, 'enter': 0x0D, 'tab': 0x09, 'space': 0x20,
+      'ctrl': 0x11, 'alt': 0x12, 'shift': 0x10, 'win': 0x5B}
+
+
 def send_key(vk):
     ok = 0
     inp = INPUT()
@@ -73,6 +79,34 @@ def send_key(vk):
     ok += u32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
     inp.u.ki.dwFlags = KEYEVENTF_KEYUP
     ok += u32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+    return ok
+
+
+def send_combo(names):
+    """按住若干个修饰键 + 一个普通键，再逆序松开。"""
+    vks = []
+    for n in names:
+        n = n.strip().lower()
+        if n in VK:
+            vks.append(VK[n])
+        elif len(n) == 1:
+            vks.append(ord(n.upper()))
+        else:
+            return None
+    ok = 0
+    for vk in vks:
+        inp = INPUT()
+        inp.type = INPUT_KEYBOARD
+        inp.u.ki.wVk = vk
+        ok += u32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+        time.sleep(0.04)
+    for vk in reversed(vks):
+        inp = INPUT()
+        inp.type = INPUT_KEYBOARD
+        inp.u.ki.wVk = vk
+        inp.u.ki.dwFlags = KEYEVENTF_KEYUP
+        ok += u32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT))
+        time.sleep(0.04)
     return ok
 
 
@@ -88,7 +122,17 @@ def main():
         print('key %s (vk=0x%02X) sendinput_ok=%d' % (name, vk, send_key(vk)))
         return
 
-    # 模式二：click_at.py <x> <y> [move]  → 移到坐标并点击（move = 只移动不点击）
+    # 模式二：click_at.py combo ctrl+alt+q  → 按组合键
+    if len(sys.argv) > 2 and sys.argv[1] == 'combo':
+        names = sys.argv[2].split('+')
+        ok = send_combo(names)
+        if ok is None:
+            print('unknown combo: ' + sys.argv[2])
+            return
+        print('combo %s sendinput_ok=%d' % (sys.argv[2], ok))
+        return
+
+    # 模式三：click_at.py <x> <y> [move]  → 移到坐标并点击（move = 只移动不点击）
     x, y = int(sys.argv[1]), int(sys.argv[2])
     move_only = len(sys.argv) > 3 and sys.argv[3] == 'move'
     sw = u32.GetSystemMetrics(SM_CXSCREEN)

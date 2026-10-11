@@ -1,6 +1,6 @@
 const assert = require('assert');
 const fs = require('fs');
-const L = require('D:/RailBox/overlay/layout.js');
+const L = require('../layout.js');
 const out = [];
 let pass = 0, fail = 0;
 
@@ -125,7 +125,7 @@ t('aging: 最深处的正文对比度仍达 WCAG AA（≥4.5）', function () {
 });
 
 t('aging: 渐变跨度与 store.js 的 EXPIRE_DAYS 一致（防止两边漂移）', function () {
-  const store = require('D:/RailBox/overlay/store.js');
+  const store = require('../store.js');
   assert.strictEqual(L.EXPIRE_DAYS, store.EXPIRE_DAYS);
 });
 
@@ -154,4 +154,4 @@ t('ropePathFor: 二次贝塞尔控制点 y = top + 2*sag', function () {
 
 out.push('');
 out.push('通过 ' + pass + ' / 失败 ' + fail);
-fs.writeFileSync('D:/RailBox/overlay/dev/_test_layout_out.txt', out.join('\n'), 'utf8');
+fs.writeFileSync(__dirname + '/_test_layout_out.txt', out.join('\n'), 'utf8');

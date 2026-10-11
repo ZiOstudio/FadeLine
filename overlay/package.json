@@ -1,11 +1,13 @@
 {
   "name": "railbox-overlay",
   "version": "0.1.0",
-  "description": "晾衣杆 · 桌面浮层形态（最小验证）",
+  "description": "晾衣杆 · 把灵感挂到一根绳子上，让时间替你淘汰",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "test": "node dev/test_layout.js && node dev/test_store.js"
   },
+  "license": "MIT",
   "devDependencies": {
     "electron": "^33.0.0"
   }

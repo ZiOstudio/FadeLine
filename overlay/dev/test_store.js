@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const store = require('D:/RailBox/overlay/store.js');
+const store = require('../store.js');
 
-const VAULT = 'D:/RailBox/overlay/_test_vault';
+const VAULT = '../_test_vault';
 const out = [];
 function say(s) { out.push(s); }
 
@@ -128,4 +128,4 @@ say('被挤掉的：' + (movedAge.join(', ') || '(无)') + ' 天   ← 应为 4 
 say('钉住的那张（5 天）：' + (pinnedStill ? '仍在绳上 ✓' : '被挤走了 ✗'));
 say('判定：' + (pinnedStill && movedAge.length === 1 && movedAge[0] === 4 ? '通过' : '失败'));
 
-fs.writeFileSync('D:/RailBox/overlay/dev/_test_store_out.txt', out.join('\n'), 'utf8');
+fs.writeFileSync(__dirname + '/_test_store_out.txt', out.join('\n'), 'utf8');

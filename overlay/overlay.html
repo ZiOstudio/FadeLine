@@ -763,7 +763,8 @@ function checkEdge(y) {
         edgeArmed = false;
         edge.classList.remove('on');
         if (window.rail) {
-          window.rail.log('顶边触发 ' + (showing ? '撤回' : '唤出'));
+          window.rail.log('顶边触发 ' + (showing ? '撤回' : '唤出') +
+                          ' · clientY=' + Math.round(y));
           window.rail.toggle();
         }
       }, EDGE_DWELL);

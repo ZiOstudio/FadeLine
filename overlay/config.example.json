@@ -1,0 +1,35 @@
+{
+  "_说明": "这是配置模板，给你看格式用的。程序首次运行会自动在同目录生成 config.json —— 想手工调整就改那个文件，不用动这个。",
+
+  "hotkey": "Control+Alt+Q",
+  "secondaryHotkey": "Control+Alt+Space",
+
+  "vault": "",
+  "_vault": "四个文件夹所在的根目录。留空 = 用「文档\\晾衣杆」。",
+
+  "pythonPath": "",
+  "_pythonPath": "留空会在启动时自动探测。抓来源和全屏检测需要它，探测不到就填 python.exe 的绝对路径。",
+
+  "backupDir": "",
+  "backupKeep": 28,
+
+  "autoStart": false,
+  "obsidianVault": "",
+  "demoMode": false,
+
+  "gameProcesses": [
+    "cs2.exe",
+    "valorant.exe"
+  ],
+  "_gameProcesses": "无边框窗口运行的游戏检测不到，把进程名（小写）填这里兜底。",
+
+  "sourceNames": {
+    "_说明": "进程名（小写）→ 想显示的名字。会和内置表合并，这里只写你想加的或想改的。",
+    "your-app": "你的应用"
+  },
+
+  "siteNames": {
+    "_说明": "窗口标题里出现的关键词（不区分大小写）→ 站点名。同样是与内置表合并。",
+    "某网站": "某网站"
+  }
+}

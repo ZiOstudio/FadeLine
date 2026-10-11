@@ -10,34 +10,147 @@ function log(m) {
 }
 process.on('uncaughtException', (e) => log('uncaught: ' + (e && e.stack || e)));
 
-let cfg = {
-  hotkey: 'Control+Alt+Q',
-  secondaryHotkey: 'Control+Alt+Space',
-  pythonPath: 'D:\\Python\\Python3146\\python.exe',
-  vault: 'D:\\OBSIDIAN\\Cangku\\选题灵感',
-  demoMode: false,
-  gameProcesses: [],
-  autoStart: false,
-  backupDir: '',
-  backupKeep: 28,
-  obsidianVault: ''
+/* ------------------------------------------------ 配置
+
+   首次运行会自己生成 config.json：数据目录默认落到「文档\晾衣杆」，
+   Python 自动探测。目标是 clone 下来双击就能跑，什么都不用手配。 */
+
+const CFG_PATH = path.join(__dirname, 'config.json');
+const FIRST_RUN = !fs.existsSync(CFG_PATH);
+
+// 来源识别的默认表放在代码里，而不是配置里 —— 这是应用自带的知识。
+// config.json 只需要写用户自己想加的条目，会和这里合并（不是替换）。
+const DEFAULT_SOURCE_NAMES = {
+  chrome: '浏览器', msedge: '浏览器', firefox: '浏览器', brave: '浏览器',
+  opera: '浏览器', vivaldi: '浏览器', msedgewebview2: '应用',
+  wechat: '微信', weixin: '微信', qq: 'QQ', tim: 'TIM',
+  dingtalk: '钉钉', feishu: '飞书', lark: '飞书',
+  code: 'VS Code', cursor: 'Cursor', obsidian: 'Obsidian',
+  notepad: '记事本', explorer: '资源管理器',
+  winword: 'Word', excel: 'Excel', powerpnt: 'PowerPoint', onenote: 'OneNote',
+  telegram: 'Telegram', discord: 'Discord', spotify: 'Spotify',
+  photoshop: 'Photoshop', figma: 'Figma',
+  snippingtool: '截图', snipaste: 'Snipaste'
 };
-try {
-  Object.assign(cfg, JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')));
-} catch (e) {
-  log('config.json 读取失败，用默认值：' + e.message);
-}
+
+const DEFAULT_SITE_NAMES = {
+  '知乎': '知乎', '小红书': '小红书', '微博': '微博',
+  bilibili: 'B站', '哔哩哔哩': 'B站', '抖音': '抖音', '豆瓣': '豆瓣',
+  '掘金': '掘金', csdn: 'CSDN', '语雀': '语雀', '微信读书': '微信读书',
+  '公众号': '公众号', '少数派': '少数派', '36氪': '36氪', '虎嗅': '虎嗅',
+  '即刻': '即刻', v2ex: 'V2EX', github: 'GitHub',
+  stackoverflow: 'Stack Overflow', 'stack overflow': 'Stack Overflow',
+  youtube: 'YouTube', twitter: 'X', 'x.com': 'X',
+  reddit: 'Reddit', medium: 'Medium', substack: 'Substack',
+  notion: 'Notion', figma: 'Figma',
+  '百度': '百度', google: 'Google', bing: 'Bing'
+};
+
+const CFG_DEFAULTS = {
+  hotkey: 'Control+Alt+Q',
+  _hotkey: '主热键。若被别的程序占用、或被键盘钩子吞掉，换一个即可。',
+  secondaryHotkey: 'Control+Alt+Space',
+  _secondaryHotkey: '备用热键，能注册上就注册。',
+
+  vault: '',
+  _vault: '四个文件夹所在的根目录。首次运行默认是「文档\\晾衣杆」。'
+        + '移动或改名后要跟着改这里，否则绳子会是空的。',
+
+  pythonPath: '',
+  _pythonPath: '抓前台窗口标题、检测全屏用。留空会在启动时自动探测；'
+             + '探测不到就填一个 python.exe 的绝对路径。',
+
+  backupDir: '',
+  _backupDir: '自动快照存放处。默认放在数据目录旁边。留空字符串则关闭备份。',
+  backupKeep: 28,
+  _backupKeep: '保留最近多少份快照。每 6 小时一份，28 份约 7 天。',
+
+  autoStart: false,
+  _autoStart: '开机自动启动。程序会在 Windows 启动文件夹里放一个指向自己的快捷方式；'
+            + '托盘菜单里可以开关。',
+
+  obsidianVault: '',
+  _obsidianVault: 'Obsidian 仓库名，用于托盘菜单的「在 Obsidian 中搜索」。'
+                + '留空则自动取数据目录的上一级文件夹名。',
+
+  demoMode: false,
+  _demoMode: '改成 true 会在界面上补一些假卡片，方便看满屏时三根绳和沙漏的样子，不写进磁盘。',
+
+  gameProcesses: [],
+  _gameProcesses: '无边框窗口运行的游戏检测不到，把它们的进程名（小写）填这里兜底，'
+                + '例如 ["cs2.exe", "valorant.exe"]。',
+
+  introSeen: false
+};
+
+let rawCfg = {};
+try { rawCfg = JSON.parse(fs.readFileSync(CFG_PATH, 'utf8')); } catch (e) {}
+
+let cfg = Object.assign({}, CFG_DEFAULTS, rawCfg);
+cfg.sourceNames = Object.assign({}, DEFAULT_SOURCE_NAMES, rawCfg.sourceNames || {});
+cfg.siteNames = Object.assign({}, DEFAULT_SITE_NAMES, rawCfg.siteNames || {});
 
 function saveCfg() {
   try {
-    fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(cfg, null, 2), 'utf8');
+    fs.writeFileSync(CFG_PATH, JSON.stringify(cfg, null, 2), 'utf8');
     return true;
   } catch (e) {
     log('写配置失败：' + e.message);
     return false;
   }
 }
+
+function defaultVault() {
+  let base;
+  try { base = app.getPath('documents'); }
+  catch (e) { base = path.join(require('os').homedir(), 'Documents'); }
+  return path.join(base, '晾衣杆');
+}
+
+/* 自动找 Python。跳过 WindowsApps 下的应用商店占位器
+   —— 那不是真解释器，调用它会弹微软商店而不是执行脚本。 */
+function detectPython() {
+  const usable = function (p) {
+    try { return !!p && fs.existsSync(p) && p.toLowerCase().indexOf('windowsapps') < 0; }
+    catch (e) { return false; }
+  };
+  try {
+    const out = cp.execSync('where python.exe', { encoding: 'utf8', timeout: 4000 });
+    for (const line of out.split(/\r?\n/)) {
+      const p = line.trim();
+      if (usable(p)) return p;
+    }
+  } catch (e) {}
+  const la = process.env.LOCALAPPDATA || '';
+  const guesses = [];
+  for (let v = 314; v >= 310; v--) {
+    guesses.push(path.join(la, 'Programs', 'Python', 'Python' + v, 'python.exe'));
+    guesses.push('C:\\Python' + v + '\\python.exe');
+  }
+  for (const g of guesses) if (usable(g)) return g;
+  return '';
+}
+
+// 用户没配的，这里补上
+if (!(typeof rawCfg.vault === 'string' && rawCfg.vault.trim())) cfg.vault = defaultVault();
+if (!cfg.pythonPath) cfg.pythonPath = detectPython();
+if (!cfg.backupDir) cfg.backupDir = path.join(path.dirname(cfg.vault), '_晾衣杆备份');
+
 let VAULT = cfg.vault;   // 可被「重新选择数据目录」改写
+
+// 首次运行：把四个文件夹建出来、落一份 config.json
+if (FIRST_RUN) {
+  try {
+    ['01-在杆', '02-采用', '03-搁置', '04-垃圾桶'].forEach(function (d) {
+      fs.mkdirSync(path.join(VAULT, d), { recursive: true });
+    });
+    log('首次运行：数据目录 = ' + VAULT);
+  } catch (e) {
+    log('首次运行创建数据目录失败：' + e.message);
+  }
+  log('首次运行：Python = ' + (cfg.pythonPath || '(未探测到)'));
+  saveCfg();
+}
 
 let overlay = null;
 let editor = null;
@@ -249,9 +362,11 @@ function hideOverlay() {
 }
 
 function toggle() {
-  log('toggle expanded=' + expanded);
-  if (expanded) hideOverlay(); else showOverlay();
-  expanded = !expanded;
+  // 日志打印切换【之后】的状态。之前打的是切换前的值，
+  // 写着 "expanded=true" 而实际结果是收起了 —— 调试时极易读反。
+  if (expanded) { hideOverlay(); expanded = false; }
+  else { showOverlay(); expanded = true; }
+  log('toggle → 现在' + (expanded ? '展开' : '收起'));
 }
 
 /* ------------------------------------------------ 编辑器 */
