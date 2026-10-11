@@ -13,7 +13,7 @@
 
   .slot{
     position:absolute;left:0;top:0;
-    transition:transform 340ms cubic-bezier(.22,1,.36,1);
+    transition:transform 340ms cubic-bezier(.22,1,.36,1), opacity .25s ease;
     pointer-events:none;
   }
   .card{
@@ -94,6 +94,7 @@
     opacity:0;transition:opacity .25s;}
   #edge.on{opacity:1;}
 
+  #ropePaths path{transition:opacity .25s ease;}
   #hud{position:absolute;left:20px;bottom:16px;font-size:11.5px;color:#C9C6BD;line-height:1.7;}
   #hud b{color:#A9A59B;font-weight:600;}
   #toast{
@@ -101,7 +102,26 @@
     background:#2C2C2A;color:#fff;font-size:13px;padding:10px 20px;border-radius:9px;
     opacity:0;transition:opacity .22s,transform .22s;pointer-events:none;
   }
+  #toast .ul{color:#DCC07A;cursor:pointer;pointer-events:auto;text-decoration:underline;margin-left:8px;}
   #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  #intro{position:absolute;inset:0;display:none;opacity:0;transition:opacity .45s;
+         pointer-events:none;z-index:70;}
+  #intro.on{opacity:1;}
+  #intro .tip{
+    position:absolute;left:50%;transform:translateX(-50%);
+    background:rgba(44,44,42,.94);color:#FFF;font-size:12.5px;
+    padding:9px 18px;border-radius:9px;white-space:nowrap;
+  }
+  #intro .introRow{
+    position:absolute;left:0;right:0;display:flex;gap:16px;
+    justify-content:center;align-items:center;pointer-events:auto;
+  }
+  #introOk{
+    background:#C9A85E;color:#1A1A18;border:none;font-size:13px;font-weight:600;
+    padding:8px 24px;border-radius:9px;cursor:pointer;font-family:inherit;
+  }
+  #introOk:hover{background:#DCC07A;}
 </style>
 </head>
 <body>
@@ -117,10 +137,7 @@
     </clipPath>
   </defs>
   <g clip-path="url(#reveal)">
-    <path id="ropeBase" fill="none" stroke="#C9A85E" stroke-width="7" stroke-linecap="round"
-          filter="url(#ropeShadow)"/>
-    <path id="ropeTwist" fill="none" stroke="#9C7E36" stroke-width="1.8"
-          stroke-linecap="round" opacity="0.9"/>
+    <g id="ropePaths"></g>
   </g>
   <g id="anchors"></g>
 </svg>
@@ -142,9 +159,19 @@
 <div id="hud"></div>
 <div id="toast"></div>
 
+<div id="intro">
+  <div class="tip" id="tip1">Ctrl+Alt+Q 随时唤出 / 收起 · 鼠标推到屏幕顶端也行</div>
+  <div class="introRow" id="introRow">
+    <div class="tip">轻点卡片 = 编辑 · 按住拖到下方 = 采用</div>
+    <button id="introOk">知道了</button>
+  </div>
+</div>
+
+<script src="layout.js"></script>
 <script>
 const EDGE_TRIGGER = true, EDGE_DWELL = 420, EDGE_BAND = 5, EDGE_REARM = 26;
-const CARD_W = 248, CARD_H = 224, ROW_GAP = 34, SLOT_PAD = 16;
+const L = Layout;
+const CARD_W = L.CARD_W, CARD_H = L.CARD_H, ROW_GAP = L.ROW_GAP, SLOT_PAD = L.SLOT_PAD;
 const CLIPS = ['#A32D2D','#185FA5','#854F0B','#0F6E56','#534AB7','#5F5E5A'];
 const CLIPNAME = ['red','blue','amber','teal','purple','gray'];
 
@@ -169,7 +196,7 @@ window.addEventListener('unhandledrejection', function (e) {
 const $ = function (id) { return document.getElementById(id); };
 const revealRect = $('revealRect'), cardsEl = $('cards'), hud = $('hud'),
       box = $('box'), toastEl = $('toast'), edge = $('edge'),
-      ropeBase = $('ropeBase'), anchors = $('anchors'), addBtn = $('add');
+      anchors = $('anchors'), addBtn = $('add');
 
 let S = { ideas: [], capacity: 21, perRow: 7, maxRopes: 3, counts: {}, demo: false };
 let W = 0, H = 0, SAG = 56, PER_ROW = 7, ROPE_TOP = 180, ROW_STRIDE = 330,
@@ -183,36 +210,8 @@ const ropeTopOf = function (r) { return ROPE_TOP + r * ROW_STRIDE; };
 function esc(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
-function aging(age) {
-  const t = Math.min(age / 20, 1), m = function (a, b) { return Math.round(a + (b - a) * t); };
-  return { bg: 'rgb(' + m(255,214) + ',' + m(255,210) + ',' + m(255,201) + ')',
-           fg: 'rgb(' + m(44,140) + ',' + m(44,136) + ',' + m(42,128) + ')',
-           bd: 'rgb(' + m(228,197) + ',' + m(225,191) + ',' + m(218,181) + ')' };
-}
-
-/* 沙漏：沙子随剩余时间下落。ratio=1 满，ratio=0 空 */
-function sandglass(ratio, urgent) {
-  ratio = Math.max(0, Math.min(1, ratio));
-  const col = urgent ? '#A32D2D' : '#854F0B';
-  const surf = 2 + (1 - ratio) * 6.4;
-  const w = 4 * (1 - (surf - 2) / 8);
-  const lh = 6.4 * (1 - ratio), lw = 4 * (1 - ratio);
-  let s = '<svg width="15" height="20" viewBox="0 0 16 20">';
-  s += '<path d="M2 1.4 H14 M2 18.6 H14" stroke="#D3D1C7" stroke-width="1.5" stroke-linecap="round"/>';
-  s += '<path d="M3 2 L13 2 L8 10 L13 18 L3 18 L8 10 Z" fill="none" stroke="#D3D1C7" stroke-width="1.3" stroke-linejoin="round"/>';
-  if (ratio > 0.03) {
-    s += '<path d="M' + (8 - w).toFixed(2) + ' ' + surf.toFixed(2) + ' L' +
-         (8 + w).toFixed(2) + ' ' + surf.toFixed(2) + ' L8 9.5 Z" fill="' + col + '"/>';
-  }
-  if (ratio < 0.97) {
-    s += '<path d="M' + (8 - lw).toFixed(2) + ' 17.4 L' + (8 + lw).toFixed(2) +
-         ' 17.4 L8 ' + (17.4 - lh).toFixed(2) + ' Z" fill="' + col + '"/>';
-  }
-  if (ratio > 0.03 && ratio < 0.97) {
-    s += '<path d="M8 10.2 L8 12" stroke="' + col + '" stroke-width="1.1" stroke-linecap="round"/>';
-  }
-  return s + '</svg>';
-}
+const aging = L.aging;
+const sandglass = L.sandglass;
 
 /* 屏幕上实际要渲染的卡片：真实数据 + 可选的演示填充 */
 function listOnRopes() {
@@ -231,21 +230,31 @@ function listOnRopes() {
 }
 
 function ropePathFor(top) {
-  return 'M 0 ' + top + ' Q ' + (W / 2) + ' ' + (top + 2 * SAG) + ' ' + W + ' ' + top;
+  return L.ropePathFor(top, W, SAG);
 }
 
 function buildRopes() {
-  const d = [];
-  for (let r = 0; r < ROPE_COUNT; r++) d.push(ropePathFor(ropeTopOf(r)));
-  ropeBase.setAttribute('d', d.join(' '));
-  const L = ropeBase.getTotalLength();
-  const step = 7.4, hx = 2.9, vy = 3.9, seg = [];
-  for (let s = 3; s < L - 3; s += step) {
-    const p = ropeBase.getPointAtLength(s);
-    seg.push('M' + (p.x - hx).toFixed(1) + ' ' + (p.y + vy).toFixed(1) +
-             'L' + (p.x + hx).toFixed(1) + ' ' + (p.y - vy).toFixed(1));
+  const wrap = $('ropePaths');
+  let html = '';
+  for (let r = 0; r < ROPE_COUNT; r++) {
+    html += '<path data-rope="' + r + '" d="' + ropePathFor(ropeTopOf(r)) +
+            '" fill="none" stroke="#C9A85E" stroke-width="7" stroke-linecap="round" filter="url(#ropeShadow)"/>';
   }
-  $('ropeTwist').setAttribute('d', seg.join(''));
+  wrap.innerHTML = html;
+  const twist = [];
+  wrap.querySelectorAll('path').forEach(function (p) {
+    const r = p.getAttribute('data-rope');
+    const L = p.getTotalLength();
+    const step = 7.4, hx = 2.9, vy = 3.9, seg = [];
+    for (let s = 3; s < L - 3; s += step) {
+      const q = p.getPointAtLength(s);
+      seg.push('M' + (q.x - hx).toFixed(1) + ' ' + (q.y + vy).toFixed(1) +
+               'L' + (q.x + hx).toFixed(1) + ' ' + (q.y - vy).toFixed(1));
+    }
+    twist.push('<path data-rope="' + r + '" d="' + seg.join('') +
+               '" fill="none" stroke="#9C7E36" stroke-width="1.8" stroke-linecap="round" opacity="0.9"/>');
+  });
+  wrap.innerHTML += twist.join('');
   let a = '';
   for (let r = 0; r < ROPE_COUNT; r++) {
     const top = ropeTopOf(r);
@@ -257,22 +266,19 @@ function buildRopes() {
 
 function computeLayout() {
   W = window.innerWidth; H = window.innerHeight;
-  ROPE_TOP = Math.round(H * 0.13);
-  SAG = Math.max(40, Math.min(72, Math.round(W * 0.022)));
-  PER_ROW = S.perRow || Math.max(5, Math.min(7, Math.round(W / 360)));
-  ROW_STRIDE = SAG + SLOT_PAD + CARD_H + ROW_GAP;
-  const room = H - ROPE_TOP - SAG - CARD_H - 256;
-  MAX_ROPES = Math.max(1, Math.min(3, 1 + Math.floor(room / ROW_STRIDE)));
-  const list = listOnRopes();
-  const need = Math.max(1, Math.ceil(list.length / PER_ROW));
-  ROPE_COUNT = Math.min(MAX_ROPES, need);
+  const lay = L.computeLayout(W, H, S.perRow, listOnRopes().length);
+  ROPE_TOP = lay.ropeTop;
+  SAG = lay.sag;
+  PER_ROW = lay.perRow;
+  ROW_STRIDE = lay.rowStride;
+  MAX_ROPES = lay.maxRopes;
+  ROPE_COUNT = lay.ropes;
   addBtn.style.left = '20px';
   addBtn.style.top = (ROPE_TOP - 58) + 'px';
 }
 
 function placeOf(k) {
-  const r = Math.floor(k / PER_ROW), i = k % PER_ROW, t = (i + 0.5) / PER_ROW;
-  return { r: r, t: t, x: W * t, y: yOnRope(ropeTopOf(r), t) };
+  return L.placeOf(k, W, PER_ROW, ROPE_TOP, SAG, ROW_STRIDE);
 }
 
 function cardHTML(it) {
@@ -343,12 +349,13 @@ function sync(animateNew) {
       card.innerHTML = c.html;
       slot.appendChild(card);
       cardsEl.appendChild(slot);
-      slots.set(it.id, { slot: slot, card: card });
+      slots.set(it.id, { slot: slot, card: card, rope: p.r });
       if (animateNew) {
         (function (el) { requestAnimationFrame(function () { el.classList.add('in'); }); })(card);
       }
     } else {
       s.slot.style.transform = tf;                 // 已有的卡：位置变了，CSS 自动补间
+      s.rope = p.r;
       s.card.classList.toggle('doom', !!it.doom);
       s.card.style.borderColor = it.doom ? '' : c.bd;
       s.card.style.background = c.bg;
@@ -373,6 +380,17 @@ function rebuildAll() {
   cardsEl.innerHTML = '';
   slots.clear();
   sync(true);
+}
+
+/* 悬停聚焦：鼠标靠近哪根绳，那根绳全亮，其余降透明度。ri=-1 表示全部恢复 */
+let focusedRope = -1;
+function focusRope(ri) {
+  document.querySelectorAll('#ropePaths path').forEach(function (p) {
+    p.style.opacity = (ri < 0 || p.getAttribute('data-rope') === String(ri)) ? '' : '0.25';
+  });
+  slots.forEach(function (s) {
+    s.slot.style.opacity = (ri < 0 || s.rope === ri) ? '' : '0.45';
+  });
 }
 
 function renderHud() {
@@ -401,11 +419,13 @@ async function expand() {
   document.body.classList.add('showing');
   try { S = await window.rail.load(); } catch (e) { if (window.rail) window.rail.log('载入失败 ' + e.message); }
   rebuildAll();
+  focusedRope = -1;
   anchors.style.opacity = 0;
   revealRect.setAttribute('width', 0);
   void document.body.offsetWidth;
   revealTo(W, 380);
   setTimeout(function () { anchors.style.opacity = 1; }, 350);
+  showIntro();
   if (window.rail) {
     window.rail.log('展开 ' + (S.counts.hanging || 0) + ' 条在杆 / 容量 ' + S.capacity +
                     ' / ' + ROPE_COUNT + ' 绳');
@@ -419,13 +439,37 @@ function collapse() {
   for (let i = 0; i < all.length; i++) { all[i].classList.remove('in'); all[i].classList.add('out'); }
   revealTo(0, 200);
   anchors.style.opacity = 0;
+  $('intro').classList.remove('on');
+  focusedRope = -1;
+  focusRope(-1);
 }
 
 function toast(msg) {
   toastEl.textContent = msg;
   toastEl.classList.add('on');
   clearTimeout(toast._t);
-  toast._t = setTimeout(function () { toastEl.classList.remove('on'); }, 2000);
+  toast._t = setTimeout(function () { toastEl.classList.remove('on'); }, 2200);
+}
+
+function toastHtml(html, ms) {
+  toastEl.innerHTML = html;
+  toastEl.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function () { toastEl.classList.remove('on'); }, ms || 2200);
+}
+
+function showUndoToast(label) {
+  toastHtml(esc(label) + '<span class="ul" id="undoLink">撤销</span>', 10000);
+}
+
+/* 首次引导：只在第一次展开时出现，点「知道了」后写进配置，永不打扰 */
+function showIntro() {
+  if (S.introSeen) return;
+  $('tip1').style.top = Math.max(16, ROPE_TOP - 92) + 'px';
+  $('introRow').style.top = (H - 232) + 'px';
+  $('intro').style.display = 'block';
+  setTimeout(function () { $('intro').classList.add('on'); }, 900);
+  if (window.rail) window.rail.log('首次引导显示');
 }
 
 /* ---------------------------------------------------- 拖拽 */
@@ -465,8 +509,13 @@ document.addEventListener('pointermove', function (e) {
   }
 
   const el = document.elementFromPoint(e.clientX, e.clientY);
-  const hot = !!(el && el.closest && (el.closest('.card') || el.closest('#add')));
+  const hot = !!(el && el.closest && (el.closest('.card') || el.closest('#add') || el.closest('#toast')));
   if (window.rail) window.rail.setIgnore(!hot);
+
+  const rel = e.clientY - ROPE_TOP;
+  let ri = Math.floor(rel / ROW_STRIDE);
+  if (ri < 0 || ri >= ROPE_COUNT) ri = -1;
+  if (ri !== focusedRope) { focusedRope = ri; focusRope(ri); }
 });
 
 document.addEventListener('pointerup', function (e) {
@@ -547,11 +596,24 @@ function openInlineEditor(id, card) {
 if (window.rail) {
   window.rail.onExpand(function () { expand(); });
   window.rail.onCollapse(collapse);
+  $('introOk').addEventListener('click', function () {
+    const intro = $('intro');
+    intro.classList.remove('on');
+    setTimeout(function () { intro.style.display = 'none'; }, 350);
+    window.rail.dismissIntro();
+  });
   // 主进程每次改完数据都会推一份新的过来，这里就地增量更新
   window.rail.onDataChanged(function (p) {
     S = p;
     if (showing) sync(true);
+    if (p.undo && Date.now() - p.undo.at < 10000) showUndoToast(p.undo.label);
     if (window.rail) window.rail.log('数据更新 → 在杆 ' + (S.counts.hanging || 0) + ' 条');
+  });
+  toastEl.addEventListener('click', function (e) {
+    if (e.target && e.target.id === 'undoLink') {
+      window.rail.undo();
+      toastHtml('已撤回', 1800);
+    }
   });
   window.rail.onEditClosed(function () {
     if (editingId) {

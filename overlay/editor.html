@@ -35,6 +35,8 @@
   button.primary{background:#2C2C2A;color:#FFF;border-color:#2C2C2A;}
   button.del{color:#A32D2D;border-color:#E8B4B4;}
   button.del:hover{background:#FCEBEB;border-color:#D98B8B;}
+  button.adopt{background:#0F6E56;color:#FFF;border-color:#0F6E56;}
+  button.adopt:hover{background:#128267;border-color:#128267;}
 </style>
 </head>
 <body>
@@ -51,7 +53,8 @@
     <span class="sp"></span>
     <button id="trash" class="del">丢掉</button>
     <button id="cancel">取消</button>
-    <button class="primary" id="save">保存</button>
+    <button id="save">保存</button>
+    <button id="adopt" class="adopt">采用</button>
   </div>
 </div>
 <script>
@@ -80,6 +83,12 @@ src.addEventListener('keydown', function (e) {
 });
 document.getElementById('save').onclick = save;
 document.getElementById('cancel').onclick = function () { window.rail.closeEditor(); };
+document.getElementById('adopt').onclick = function () {
+  if (!cur || cur.mode === 'new') return;
+  const t = text.value.trim();
+  if (!t) { text.focus(); return; }
+  window.rail.adoptCard({ id: cur.id, text: t, source: src.value.trim() });
+};
 document.getElementById('trash').onclick = function () {
   if (!cur || cur.mode === 'new') { window.rail.closeEditor(); return; }
   window.rail.trashCard({ id: cur.id });
@@ -92,6 +101,7 @@ window.rail.onLoad(function (p) {
   clip.style.background = p.clip || '#5F5E5A';
   title.textContent = p.mode === 'new' ? '挂一条新灵感' : '编辑这条灵感';
   document.getElementById('trash').style.display = p.mode === 'new' ? 'none' : '';
+  document.getElementById('adopt').style.display = p.mode === 'new' ? 'none' : '';
   setTimeout(function () {
     (p.mode === 'new' && !p.text ? text : text).focus();
     text.setSelectionRange(text.value.length, text.value.length);

@@ -1,21 +1,18 @@
 {
   "hotkey": "Control+Alt+Q",
-  "_hotkey": "主热键。Ctrl+Alt+Space 在这台机器上被第三方键盘钩子吞掉（只拦物理按键、放行注入输入），实测无效。",
   "secondaryHotkey": "Control+Alt+Space",
-  "_secondaryHotkey": "备用热键，能注册上就注册。",
-
   "pythonPath": "D:\\Python\\Python3146\\python.exe",
-  "_pythonPath": "用来抓前台窗口标题。填你机器上的 python.exe 绝对路径。",
-
-  "vault": "D:\\OBSIDIAN\\Cangku\\选题灵感",
-  "_vault": "四个文件夹所在的根目录。",
-
+  "vault": "D:\\OBSIDIAN\\Cangku\\AI kaifa\\选题灵感",
   "demoMode": false,
-  "_demoMode": "改成 true 会在界面上补一些假卡片，方便看满屏时三根绳和沙漏的样子，不写进磁盘。",
-
   "gameProcesses": [],
+  "autoStart": true,
+  "_hotkey": "主热键。Ctrl+Alt+Space 在这台机器上被第三方键盘钩子吞掉（只拦物理按键、放行注入输入），实测无效。",
+  "_secondaryHotkey": "备用热键，能注册上就注册。",
+  "_pythonPath": "用来抓前台窗口标题。填你机器上的 python.exe 绝对路径。",
+  "_vault": "四个文件夹所在的根目录。已并入 AI kaifa 仓库，作为子文件夹。",
+  "_demoMode": "改成 true 会在界面上补一些假卡片，方便看满屏时三根绳和沙漏的样子，不写进磁盘。",
   "_gameProcesses": "无边框窗口运行的游戏检测不到，把它们的进程名（小写）填这里兜底，例如 [\"cs2.exe\", \"valorant.exe\"]。",
-
+  "_autoStart": "开机自动启动。程序会在 Windows 启动文件夹里放一个指向自己的快捷方式；托盘菜单里可以开关。",
   "sourceNames": {
     "_说明": "进程名（小写）→ 显示名。抓到什么就显示什么，没匹配上就直接用进程名。",
     "chrome": "浏览器",
@@ -49,7 +46,6 @@
     "snippingtool": "截图",
     "snipaste": "Snipaste"
   },
-
   "siteNames": {
     "_说明": "窗口标题里出现的关键词（不区分大小写）→ 站点名。想加站点直接在这里加一行。",
     "知乎": "知乎",

@@ -13,9 +13,12 @@ contextBridge.exposeInMainWorld('rail', {
   addCard: (p) => ipcRenderer.send('data-add', p),
   saveCard: (p) => ipcRenderer.send('data-save', p),
   archiveCard: (p) => ipcRenderer.send('data-archive', p),
+  adoptCard: (p) => ipcRenderer.send('data-adopt', p),
   trashCard: (p) => ipcRenderer.send('data-trash', p),
+  undo: () => ipcRenderer.send('data-undo'),
 
   onDataChanged: (cb) => ipcRenderer.on('data-changed', (e, p) => cb(p)),
+  dismissIntro: () => ipcRenderer.send('dismiss-intro'),
   onExpand: (cb) => ipcRenderer.on('expand', () => cb()),
   onCollapse: (cb) => ipcRenderer.on('collapse', () => cb()),
   onLoad: (cb) => ipcRenderer.on('load', (e, p) => cb(p)),

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const files = ['D:/RailBox/overlay/overlay.html', 'D:/RailBox/overlay/editor.html'];
 const ids = {
-  'overlay.html': ['revealRect', 'cards', 'hud', 'box', 'toast', 'edge', 'add', 'anchors', 'ropeBase', 'ropeTwist'],
+  'overlay.html': ['revealRect', 'cards', 'hud', 'box', 'toast', 'edge', 'add', 'anchors', 'ropePaths', 'intro', 'introOk'],
   'editor.html': ['source', 'text', 'clip', 'save', 'cancel', 'title', 'trash']
 };
 const out = [];

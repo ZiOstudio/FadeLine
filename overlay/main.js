@@ -16,12 +16,23 @@ let cfg = {
   pythonPath: 'D:\\Python\\Python3146\\python.exe',
   vault: 'D:\\OBSIDIAN\\Cangku\\选题灵感',
   demoMode: false,
-  gameProcesses: []
+  gameProcesses: [],
+  autoStart: false
 };
 try {
   Object.assign(cfg, JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')));
 } catch (e) {
   log('config.json 读取失败，用默认值：' + e.message);
+}
+
+function saveCfg() {
+  try {
+    fs.writeFileSync(path.join(__dirname, 'config.json'), JSON.stringify(cfg, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    log('写配置失败：' + e.message);
+    return false;
+  }
 }
 const VAULT = cfg.vault;
 
@@ -96,6 +107,11 @@ function captureSource() {
 
 /* ------------------------------------------------ 数据接口 */
 
+let lastAction = null;   // { moves:[{id,from,to}], label, at } 最近一次写盘动作，供撤销
+function recordAction(moves, label) {
+  if (moves && moves.length) lastAction = { moves: moves, label: label, at: Date.now() };
+}
+
 function payload() {  const cap = computeCapacity();
   let ideas;
   try {
@@ -129,6 +145,8 @@ function payload() {  const cap = computeCapacity();
     hanging: hanging.length,
     full: hanging.length >= cap.capacity,
     demo: !!cfg.demoMode,
+    introSeen: !!cfg.introSeen,
+    undo: lastAction ? { at: lastAction.at, label: lastAction.label } : null,
     vault: VAULT,
     counts: {
       hanging: hanging.length,
@@ -149,6 +167,10 @@ function runSettle() {
   try {
     const cap = computeCapacity();
     const r = store.settle(VAULT, cap.capacity);
+    if (r.moved.length) {
+      recordAction(r.moved.map(function (i) { return { id: i.id, from: 'hanging', to: 'expired' }; }),
+                   r.moved.length + ' 条已移入搁置');
+    }
     if (r.moved.length || r.marked.length) {
       log('结算：挤出/过时 ' + r.moved.length + ' 条，' +
           '新进入待淘汰 ' + r.marked.length + ' 条');
@@ -255,13 +277,58 @@ function closeEditor() {
   if (editor && !editor.isDestroyed()) editor.close();
 }
 
+/* ------------------------------------------------ 开机自启 */
+
+// 写 Windows 启动文件夹里的快捷方式，而不是 app.setLoginItemSettings()。
+// 因为开发模式（未打包）下后者很可能只注册 electron.exe 而不带项目路径，
+// 开机后会启动一个空的 Electron，用户还完全不知道发生了什么。
+function startupLnkPath() {
+  return path.join(app.getPath('appData'),
+    'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', '晾衣杆.lnk');
+}
+
+function isAutoStartOn() {
+  try { return fs.existsSync(startupLnkPath()); } catch (e) { return false; }
+}
+
+function setAutoStart(on, cb) {
+  cfg.autoStart = !!on;
+  saveCfg();
+  const lnk = startupLnkPath();
+  if (!on) {
+    try {
+      if (fs.existsSync(lnk)) fs.unlinkSync(lnk);
+      log('已关闭开机自启（删除快捷方式）');
+      cb && cb(true);
+    } catch (e) {
+      log('删除快捷方式失败：' + e.message);
+      cb && cb(false);
+    }
+    return;
+  }
+  // 用 -EncodedCommand（base64 的 UTF-16LE）传脚本，彻底避开中文被按 GBK 误解的问题
+  const script = [
+    '$s = (New-Object -ComObject WScript.Shell).CreateShortcut(' + JSON.stringify(lnk) + ')',
+    '$s.TargetPath = ' + JSON.stringify(process.execPath),
+    '$s.Arguments = ' + JSON.stringify(__dirname),
+    '$s.WorkingDirectory = ' + JSON.stringify(__dirname),
+    '$s.WindowStyle = 1',
+    '$s.Description = "晾衣杆 · 灵感墙"',
+    '$s.Save()'
+  ].join('; ');
+  const enc = Buffer.from(script, 'utf16le').toString('base64');
+  cp.execFile('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', enc],
+    { timeout: 8000 }, function (err) {
+      if (err) { log('创建快捷方式失败：' + err.message); cb && cb(false); return; }
+      log('已开启开机自启 → ' + lnk);
+      cb && cb(true);
+    });
+}
+
 /* ------------------------------------------------ 托盘 */
 
-function createTray() {
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'tray.png'));
-  tray = new Tray(icon);
-  tray.setToolTip('晾衣杆 · 灵感箱');
-  tray.setContextMenu(Menu.buildFromTemplate([
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
     { label: '展开 / 收起绳子    Ctrl+Alt+Q', click: function () { toggle(); } },
     { type: 'separator' },
     { label: '打开灵感箱', click: function () { try { shell.openPath(VAULT); } catch (e) {} } },
@@ -269,10 +336,27 @@ function createTray() {
     { label: '打开搁置区', click: function () { try { shell.openPath(path.join(VAULT, '03-搁置')); } catch (e) {} } },
     { label: '打开垃圾桶', click: function () { try { shell.openPath(path.join(VAULT, '04-垃圾桶')); } catch (e) {} } },
     { type: 'separator' },
+    {
+      label: '开机自动启动', type: 'checkbox', checked: isAutoStartOn(),
+      click: function (mi) {
+        setAutoStart(mi.checked, function () {
+          if (tray) tray.setContextMenu(buildTrayMenu());   // 重建菜单刷新勾选态
+        });
+      }
+    },
+    { label: '打开日志', click: function () { try { shell.openPath(LOG); } catch (e) {} } },
+    { type: 'separator' },
     { label: '退出', click: function () { app.quit(); } }
-  ]));
+  ]);
+}
+
+function createTray() {
+  const icon = nativeImage.createFromPath(path.join(__dirname, 'tray.png'));
+  tray = new Tray(icon);
+  tray.setToolTip('晾衣杆 · 灵感箱');
+  tray.setContextMenu(buildTrayMenu());
   tray.on('click', function () { toggle(); });
-  log('托盘已创建');
+  log('托盘已创建（开机自启：' + (isAutoStartOn() ? '开' : '关') + '）');
 }
 
 /* ------------------------------------------------ 游戏 / 全屏检测 */
@@ -339,7 +423,20 @@ function pollGame() {
 
 /* ------------------------------------------------ 启动 */
 
+// 单实例锁：开机自启和手动点击快捷方式同时发生时，不会挂出两根绳子。
+// 第二个实例会立刻退出，并把已运行的那个实例的浮层切换一次。
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  log('已有实例在运行，本实例退出');
+  app.quit();
+}
+app.on('second-instance', function () {
+  log('收到第二个实例的启动请求，切换浮层');
+  toggle();
+});
+
 app.whenReady().then(function () {
+  if (!gotLock) return;
   log('=== 启动 === 数据目录 ' + VAULT);
   createOverlay();
   createTray();
@@ -357,9 +454,15 @@ app.whenReady().then(function () {
   ipcMain.on('open-folder', function () { try { shell.openPath(VAULT); } catch (err) {} });
   ipcMain.on('log', function (e, m) { log('[renderer] ' + m); });
 
+  ipcMain.on('dismiss-intro', function () {
+    cfg.introSeen = true;
+    if (saveCfg()) log('首次引导已关闭，写回 config.json');
+  });
+
   ipcMain.on('data-add', function (e, p) {
     const idea = store.add(VAULT, p.text, p.source, p.clip);
     log('新增 ' + idea.filename + '  来源=' + (p.source || '—'));
+    lastAction = null;   // 新增可能触发挤压，之前的撤销作废
     closeEditor();
     broadcast();
   });
@@ -381,7 +484,24 @@ app.whenReady().then(function () {
     const ideas = store.scan(VAULT);
     const it = ideas.filter(function (x) { return x.id === p.id; })[0];
     if (it) {
+      const from = it.status;
       store.move(VAULT, it, 'closet', '我决定采用');
+      recordAction([{ id: it.id, from: from, to: 'closet' }], '已采用');
+      log('采用 ' + it.filename);
+    }
+    closeEditor();
+    broadcast();
+  });
+
+  ipcMain.on('data-adopt', function (e, p) {
+    const ideas = store.scan(VAULT);
+    const it = ideas.filter(function (x) { return x.id === p.id; })[0];
+    if (it) {
+      const from = it.status;
+      if (p.text) it.text = p.text;
+      if (p.source) it.source = p.source;
+      store.move(VAULT, it, 'closet', '我决定采用');
+      recordAction([{ id: it.id, from: from, to: 'closet' }], '已采用');
       log('采用 ' + it.filename);
     }
     closeEditor();
@@ -392,10 +512,28 @@ app.whenReady().then(function () {
     const ideas = store.scan(VAULT);
     const it = ideas.filter(function (x) { return x.id === p.id; })[0];
     if (it) {
+      const from = it.status;
       store.move(VAULT, it, 'trash', '我主动丢掉');
+      recordAction([{ id: it.id, from: from, to: 'trash' }], '已丢掉');
       log('丢掉 ' + it.filename);
     }
     closeEditor();
+    broadcast();
+  });
+
+  ipcMain.on('data-undo', function () {
+    if (!lastAction) return;
+    const ideas = store.scan(VAULT);
+    let n = 0;
+    lastAction.moves.forEach(function (m) {
+      const it = ideas.filter(function (x) { return x.id === m.id; })[0];
+      if (it && it.status === m.to) {
+        store.move(VAULT, it, m.from, '撤销上一次移动');
+        n++;
+      }
+    });
+    log('撤销 ' + n + ' 条');
+    lastAction = null;
     broadcast();
   });
 
@@ -403,6 +541,12 @@ app.whenReady().then(function () {
 
   setTimeout(function () { log('首次自动展开'); showOverlay(); expanded = true; }, 700);
   setTimeout(pollGame, 5000);   // 启动 5 秒后开始游戏检测轮询
+
+  // 配置说要开机自启但快捷方式不见了（被误删 / 被杀软隔离），补建回来
+  if (cfg.autoStart && !isAutoStartOn()) {
+    log('配置要求开机自启，但启动文件夹里没有快捷方式，补建');
+    setTimeout(function () { setAutoStart(true); }, 1500);
+  }
 });
 
 app.on('will-quit', function () { globalShortcut.unregisterAll(); log('=== 退出 ==='); });
