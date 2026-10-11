@@ -6,6 +6,9 @@
   "demoMode": false,
   "gameProcesses": [],
   "autoStart": true,
+  "backupDir": "D:\\OBSIDIAN\\Cangku\\_备份",
+  "backupKeep": 28,
+  "obsidianVault": "",
   "_hotkey": "主热键。Ctrl+Alt+Space 在这台机器上被第三方键盘钩子吞掉（只拦物理按键、放行注入输入），实测无效。",
   "_secondaryHotkey": "备用热键，能注册上就注册。",
   "_pythonPath": "用来抓前台窗口标题。填你机器上的 python.exe 绝对路径。",
@@ -13,6 +16,9 @@
   "_demoMode": "改成 true 会在界面上补一些假卡片，方便看满屏时三根绳和沙漏的样子，不写进磁盘。",
   "_gameProcesses": "无边框窗口运行的游戏检测不到，把它们的进程名（小写）填这里兜底，例如 [\"cs2.exe\", \"valorant.exe\"]。",
   "_autoStart": "开机自动启动。程序会在 Windows 启动文件夹里放一个指向自己的快捷方式；托盘菜单里可以开关。",
+  "_backupDir": "自动快照存放处。故意放在仓库外面，避免 Obsidian 索引到备份。留空字符串则关闭备份。",
+  "_backupKeep": "保留最近多少份快照。每 6 小时一份，28 份约 7 天。",
+  "_obsidianVault": "Obsidian 仓库名，用于「在 Obsidian 中搜索」。留空则自动取数据目录的上一级文件夹名。",
   "sourceNames": {
     "_说明": "进程名（小写）→ 显示名。抓到什么就显示什么，没匹配上就直接用进程名。",
     "chrome": "浏览器",
@@ -79,5 +85,6 @@
     "百度": "百度",
     "google": "Google",
     "bing": "Bing"
-  }
+  },
+  "introSeen": true
 }

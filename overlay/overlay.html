@@ -105,14 +105,33 @@
   #toast .ul{color:#DCC07A;cursor:pointer;pointer-events:auto;text-decoration:underline;margin-left:8px;}
   #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
 
+  #alarm{
+    position:absolute;left:50%;transform:translateX(-50%);top:16px;
+    max-width:72%;box-sizing:border-box;
+    background:rgba(163,45,45,.95);color:#FFF;
+    padding:11px 20px;border-radius:10px;
+    display:none;flex-direction:column;gap:5px;
+    pointer-events:none;z-index:80;
+    box-shadow:0 8px 26px rgba(80,20,20,.28);
+  }
+  #alarm b{font-size:13px;font-weight:600;}
+  #alarm span{font-size:11.5px;opacity:.86;line-height:1.5;}
+  #alarm .acts{display:flex;gap:8px;margin-top:5px;pointer-events:auto;}
+  #alarm button{
+    font:inherit;font-size:11.5px;padding:5px 12px;border-radius:7px;cursor:pointer;
+    background:rgba(255,255,255,.92);color:#7A1F1F;border:none;
+  }
+  #alarm button:hover{background:#FFF;}
+
   #intro{position:absolute;inset:0;display:none;opacity:0;transition:opacity .45s;
          pointer-events:none;z-index:70;}
   #intro.on{opacity:1;}
   #intro .tip{
-    position:absolute;left:50%;transform:translateX(-50%);
     background:rgba(44,44,42,.94);color:#FFF;font-size:12.5px;
     padding:9px 18px;border-radius:9px;white-space:nowrap;
   }
+  /* 只有顶部那条是绝对定位；底部那条要留在 flex 流里，否则会压住「知道了」按钮 */
+  #tip1{position:absolute;left:50%;transform:translateX(-50%);}
   #intro .introRow{
     position:absolute;left:0;right:0;display:flex;gap:16px;
     justify-content:center;align-items:center;pointer-events:auto;
@@ -142,7 +161,7 @@
   <g id="anchors"></g>
 </svg>
 
-<div id="add" title="挂一条新灵感">+</div>
+<div id="add" data-hot title="挂一条新灵感">+</div>
 <div id="cards"></div>
 
 <div id="box">
@@ -157,13 +176,14 @@
 </div>
 
 <div id="hud"></div>
-<div id="toast"></div>
+<div id="toast" data-hot></div>
+<div id="alarm"></div>
 
 <div id="intro">
   <div class="tip" id="tip1">Ctrl+Alt+Q 随时唤出 / 收起 · 鼠标推到屏幕顶端也行</div>
   <div class="introRow" id="introRow">
     <div class="tip">轻点卡片 = 编辑 · 按住拖到下方 = 采用</div>
-    <button id="introOk">知道了</button>
+    <button id="introOk" data-hot>知道了</button>
   </div>
 </div>
 
@@ -300,7 +320,9 @@ function cardHTML(it) {
       '<div class="src"><span class="dot" style="background:' + hex + '"></span>' +
         esc(it.source || '未知来源') + '</div>' +
       '<div class="txt" style="color:' + st.fg + '">' + esc(it.text) + '</div>' +
-      '<div class="foot">' + foot + '<div class="hintbar">拖到下方采用 · 点击编辑</div></div>'
+      '<div class="foot">' + foot + '<div class="hintbar">' +
+        (it.doom ? '⚠ 待淘汰：48 小时内不处理就会被移走 · 点击编辑' : '拖到下方采用 · 点击编辑') +
+        '</div></div>'
   };
 }
 
@@ -343,6 +365,7 @@ function sync(animateNew) {
       const card = document.createElement('div');
       card.className = 'card';
       card.dataset.id = it.id;
+      card.dataset.hot = '1';
       card.style.setProperty('--d', Math.round(120 + 260 * p.t + p.r * 90) + 'ms');
       card.style.background = c.bg;
       card.style.borderColor = it.doom ? '' : c.bd;
@@ -374,6 +397,7 @@ function sync(animateNew) {
   });
 
   renderHud();
+  renderAlarm();
 }
 
 function rebuildAll() {
@@ -398,6 +422,48 @@ function renderHud() {
   hud.innerHTML = '在杆 <b>' + (c.hanging || 0) + '</b> · 采用 <b>' + (c.closet || 0) +
     '</b> · 搁置 <b>' + (c.expired || 0) + '</b> · 垃圾桶 <b>' + (c.trash || 0) +
     '</b>' + (S.demo ? ' · <b>演示填充</b>' : '');
+}
+
+/* 自检告警条：数据目录挂了 / Python 找不到 等，必须主动告诉用户，不能只写日志 */
+let lastAlarmCount = -1;
+function renderAlarm() {
+  const el = $('alarm');
+  const ps = S.problems || [];
+  if (!ps.length) { el.style.display = 'none'; lastAlarmCount = 0; return; }
+  let h = '<b>⚠ ' + esc(ps[0].text) + '</b>';
+  ps.slice(0, 4).forEach(function (p) { h += '<span>' + esc(p.hint || '') + '</span>'; });
+
+  // 能直接修好的就给入口，而不是只告诉用户"哪儿坏了"
+  const fixes = {};
+  ps.forEach(function (p) { if (p.fix) fixes[p.fix] = 1; });
+  let acts = '';
+  if (fixes.vault) acts += '<button data-hot id="fixVault">重新选择数据目录</button>';
+  acts += '<button data-hot id="fixConfig">打开配置文件</button>';
+  h += '<div class="acts">' + acts + '</div>';
+
+  el.innerHTML = h;
+  el.style.display = 'flex';
+
+  const bv = $('fixVault');
+  if (bv) bv.addEventListener('click', function (e) { e.stopPropagation(); window.rail.pickVault(); });
+  const bc = $('fixConfig');
+  if (bc) bc.addEventListener('click', function (e) { e.stopPropagation(); window.rail.openConfig(); });
+
+  if (ps.length !== lastAlarmCount) {
+    lastAlarmCount = ps.length;
+    if (window.rail) {
+      window.rail.log('★告警条显示：' + ps[0].text);
+      // 记下按钮位置，方便用 dev/click_at.py 复测「按钮能不能点」
+      ['fixVault', 'fixConfig'].forEach(function (bid) {
+        const b = $(bid);
+        if (!b) return;
+        const r = b.getBoundingClientRect();
+        window.rail.log('  按钮 ' + bid + ' 中心=(' + Math.round(r.left + r.width / 2) +
+                        ',' + Math.round(r.top + r.height / 2) + ') 尺寸=' +
+                        Math.round(r.width) + 'x' + Math.round(r.height));
+      });
+    }
+  }
 }
 
 function revealTo(target, dur) {
@@ -464,12 +530,35 @@ function showUndoToast(label) {
 
 /* 首次引导：只在第一次展开时出现，点「知道了」后写进配置，永不打扰 */
 function showIntro() {
-  if (S.introSeen) return;
+  if (S.introSeen || introDismissed) return;
   $('tip1').style.top = Math.max(16, ROPE_TOP - 92) + 'px';
   $('introRow').style.top = (H - 232) + 'px';
   $('intro').style.display = 'block';
-  setTimeout(function () { $('intro').classList.add('on'); }, 900);
+  setTimeout(function () {
+    $('intro').classList.add('on');
+    const r = $('introOk').getBoundingClientRect();
+    if (window.rail) {
+      window.rail.log('引导就位 按钮中心=(' + Math.round(r.left + r.width / 2) + ',' +
+                      Math.round(r.top + r.height / 2) + ') 尺寸=' +
+                      Math.round(r.width) + 'x' + Math.round(r.height));
+    }
+  }, 900);
   if (window.rail) window.rail.log('首次引导显示');
+}
+
+/* 关掉引导。除了点「知道了」，用户只要做出任意一个被引导的动作，
+   就说明他已经摸清楚了，不必再等确认 —— 这样它不会反复占视野。 */
+let introDismissed = false;
+function introDone(reason) {
+  if (introDismissed || S.introSeen) return;
+  introDismissed = true;
+  const intro = $('intro');
+  intro.classList.remove('on');
+  setTimeout(function () { intro.style.display = 'none'; }, 350);
+  if (window.rail) {
+    window.rail.dismissIntro();
+    window.rail.log('引导已关闭（' + reason + '）');
+  }
 }
 
 /* ---------------------------------------------------- 拖拽 */
@@ -492,6 +581,7 @@ document.addEventListener('pointermove', function (e) {
     drag.dx = dx; drag.dy = dy;
     if (!drag.moved && Math.hypot(dx, dy) > 5) {
       drag.moved = true;
+      introDone('拖动了卡片');
       drag.card.classList.remove('in', 'back');
       drag.card.classList.add('dragging');
       document.body.classList.add('dragging');
@@ -509,7 +599,11 @@ document.addEventListener('pointermove', function (e) {
   }
 
   const el = document.elementFromPoint(e.clientX, e.clientY);
-  const hot = !!(el && el.closest && (el.closest('.card') || el.closest('#add') || el.closest('#toast')));
+  // 可点击元素必须带 data-hot 自己声明，不能在这里维护一份名单。
+  // 之前就是漏登记了「知道了」按钮，于是窗口在系统层面继续忽略鼠标，
+  // 点击直接穿透到桌面 —— 表现就是"按钮点了没反应"。
+  // 新增任何可点击元素时，记得给它加 data-hot。
+  const hot = !!(el && el.closest && el.closest('[data-hot]'));
   if (window.rail) window.rail.setIgnore(!hot);
 
   const rel = e.clientY - ROPE_TOP;
@@ -570,6 +664,7 @@ addBtn.addEventListener('pointerdown', function (e) {
 addBtn.addEventListener('click', function (e) {
   e.stopPropagation();
   if (!showing || !window.rail) return;
+  introDone('点了新增');
   const top = ropeTopOf(0), t = 0.5 / PER_ROW;
   const x = W * t, y = yOnRope(top, t);
   window.rail.log('点击新增');
@@ -586,6 +681,7 @@ function openInlineEditor(id, card) {
   const r = card.getBoundingClientRect();
   editingId = id;
   card.classList.add('editing');
+  introDone('点了卡片');
   window.rail.log('点击编辑 ' + id);
   window.rail.openEditor({
     id: id, mode: 'edit', text: it.text, source: it.source, clip: it.clip,
@@ -596,12 +692,7 @@ function openInlineEditor(id, card) {
 if (window.rail) {
   window.rail.onExpand(function () { expand(); });
   window.rail.onCollapse(collapse);
-  $('introOk').addEventListener('click', function () {
-    const intro = $('intro');
-    intro.classList.remove('on');
-    setTimeout(function () { intro.style.display = 'none'; }, 350);
-    window.rail.dismissIntro();
-  });
+  $('introOk').addEventListener('click', function () { introDone('点了「知道了」'); });
   // 主进程每次改完数据都会推一份新的过来，这里就地增量更新
   window.rail.onDataChanged(function (p) {
     S = p;

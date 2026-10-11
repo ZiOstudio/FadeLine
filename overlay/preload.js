@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('rail', {
   openEditor: (payload) => ipcRenderer.send('open-editor', payload),
   closeEditor: () => ipcRenderer.send('close-editor'),
   openFolder: () => ipcRenderer.send('open-folder'),
+  pickVault: () => ipcRenderer.send('pick-vault'),
+  openConfig: () => ipcRenderer.send('open-config'),
   toggle: () => ipcRenderer.send('toggle'),
   log: (m) => ipcRenderer.send('log', m),
 

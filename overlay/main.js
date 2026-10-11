@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, screen, ipcMain, shell, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, globalShortcut, screen, ipcMain, shell, Tray, Menu, nativeImage, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
@@ -17,7 +17,10 @@ let cfg = {
   vault: 'D:\\OBSIDIAN\\Cangku\\选题灵感',
   demoMode: false,
   gameProcesses: [],
-  autoStart: false
+  autoStart: false,
+  backupDir: '',
+  backupKeep: 28,
+  obsidianVault: ''
 };
 try {
   Object.assign(cfg, JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')));
@@ -34,7 +37,7 @@ function saveCfg() {
     return false;
   }
 }
-const VAULT = cfg.vault;
+let VAULT = cfg.vault;   // 可被「重新选择数据目录」改写
 
 let overlay = null;
 let editor = null;
@@ -112,14 +115,20 @@ function recordAction(moves, label) {
   if (moves && moves.length) lastAction = { moves: moves, label: label, at: Date.now() };
 }
 
-function payload() {  const cap = computeCapacity();
-  let ideas;
-  try {
-    store.ensureVault(VAULT);
-    ideas = store.scan(VAULT);
-  } catch (e) {
-    log('扫描失败：' + e.message);
-    ideas = [];
+function payload() {
+  const cap = computeCapacity();
+  // 自检必须在 ensureVault 之前跑 —— 否则它会把目录建出来，让自检永远报"通过"
+  const problems = selfCheck();
+  const vaultBroken = problems.some(function (p) { return p.fix === 'vault'; });
+
+  let ideas = [];
+  if (!vaultBroken) {
+    try {
+      store.ensureVault(VAULT);
+      ideas = store.scan(VAULT);
+    } catch (e) {
+      log('扫描失败：' + e.message);
+    }
   }
   const now = Date.now();
   const list = ideas.map(function (i) {
@@ -146,6 +155,7 @@ function payload() {  const cap = computeCapacity();
     full: hanging.length >= cap.capacity,
     demo: !!cfg.demoMode,
     introSeen: !!cfg.introSeen,
+    problems: problems,
     undo: lastAction ? { at: lastAction.at, label: lastAction.label } : null,
     vault: VAULT,
     counts: {
@@ -161,6 +171,18 @@ function payload() {  const cap = computeCapacity();
 // 浮层永远不知道数据变了 —— 这就是「新增后必须收起再展开才看得到」的原因。
 function broadcast() {
   if (overlay && !overlay.isDestroyed()) overlay.webContents.send('data-changed', payload());
+  if (tray) { try { tray.setContextMenu(buildTrayMenu()); } catch (e) {} }
+}
+
+function countIn(sub) {
+  try {
+    return fs.readdirSync(path.join(VAULT, sub))
+      .filter(function (f) { return /\.md$/i.test(f) && f[0] !== '_'; }).length;
+  } catch (e) { return 0; }
+}
+
+function obsVaultName() {
+  return cfg.obsidianVault || path.basename(path.dirname(VAULT));
 }
 
 function runSettle() {
@@ -277,6 +299,87 @@ function closeEditor() {
   if (editor && !editor.isDestroyed()) editor.close();
 }
 
+/* ------------------------------------------------ 自动快照备份 */
+
+function tsStamp() {
+  const d = new Date(), p = function (n) { return String(n).padStart(2, '0'); };
+  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
+}
+
+function copyDir(src, dst) {
+  fs.mkdirSync(dst, { recursive: true });
+  fs.readdirSync(src, { withFileTypes: true }).forEach(function (e) {
+    const a = path.join(src, e.name), b = path.join(dst, e.name);
+    if (e.isDirectory()) copyDir(a, b);
+    else if (e.isFile()) fs.copyFileSync(a, b);
+  });
+}
+
+function backupVault(reason) {
+  if (!cfg.backupDir) return;
+  try {
+    if (!fs.existsSync(VAULT)) { log('备份跳过：数据目录不存在'); return; }
+    const dest = path.join(cfg.backupDir, '选题灵感-' + tsStamp());
+    if (fs.existsSync(dest)) { log('备份跳过：' + path.basename(dest) + ' 已存在'); return; }
+    copyDir(VAULT, dest);
+
+    // 只清理备份目录里我们自己的快照，且严格限制在该目录内
+    const root = path.resolve(cfg.backupDir);
+    const all = fs.readdirSync(cfg.backupDir)
+      .filter(function (n) { return n.indexOf('选题灵感-') === 0; })
+      .sort();
+    const keep = Math.max(2, cfg.backupKeep || 28);
+    while (all.length > keep) {
+      const old = all.shift();
+      const p = path.resolve(path.join(cfg.backupDir, old));
+      if (p.indexOf(root) !== 0) continue;          // 越界保护
+      try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) {}
+    }
+    log('已备份 ' + path.basename(dest) + '（当前保留 ' + all.length + ' 份）' + (reason ? ' · ' + reason : ''));
+  } catch (e) {
+    log('备份失败：' + e.message);
+  }
+}
+
+/* ------------------------------------------------ 启动自检 */
+
+const NEED_DIRS = ['01-在杆', '02-采用', '03-搁置', '04-垃圾桶'];
+
+function selfCheck() {
+  const problems = [];
+
+  if (!fs.existsSync(VAULT)) {
+    problems.push({
+      level: 'error', fix: 'vault',
+      text: '数据目录不存在',
+      hint: VAULT + ' — 请重新选择，或修改 config.json 的 vault'
+    });
+  } else {
+    NEED_DIRS.forEach(function (d) {
+      const p = path.join(VAULT, d);
+      if (!fs.existsSync(p)) {
+        try { fs.mkdirSync(p, { recursive: true }); }
+        catch (e) { problems.push({ level: 'error', text: '无法创建文件夹 ' + d, hint: e.message }); }
+      }
+    });
+  }
+
+  if (!fs.existsSync(cfg.pythonPath)) {
+    problems.push({
+      level: 'error', fix: 'python',
+      text: '找不到 Python',
+      hint: cfg.pythonPath + ' — 来源抓取与游戏检测都会失效'
+    });
+  }
+  if (!fs.existsSync(path.join(__dirname, 'check_game.py'))) {
+    problems.push({ level: 'error', text: '缺少 check_game.py', hint: '游戏 / 全屏检测会失效' });
+  }
+  if (!fs.existsSync(path.join(__dirname, 'tray.png'))) {
+    problems.push({ level: 'warn', text: '缺少 tray.png', hint: '托盘图标会显示为空白' });
+  }
+  return problems;
+}
+
 /* ------------------------------------------------ 开机自启 */
 
 // 写 Windows 启动文件夹里的快捷方式，而不是 app.setLoginItemSettings()。
@@ -332,9 +435,20 @@ function buildTrayMenu() {
     { label: '展开 / 收起绳子    Ctrl+Alt+Q', click: function () { toggle(); } },
     { type: 'separator' },
     { label: '打开灵感箱', click: function () { try { shell.openPath(VAULT); } catch (e) {} } },
-    { label: '打开采用区', click: function () { try { shell.openPath(path.join(VAULT, '02-采用')); } catch (e) {} } },
-    { label: '打开搁置区', click: function () { try { shell.openPath(path.join(VAULT, '03-搁置')); } catch (e) {} } },
-    { label: '打开垃圾桶', click: function () { try { shell.openPath(path.join(VAULT, '04-垃圾桶')); } catch (e) {} } },
+    { label: '打开采用区（' + countIn('02-采用') + ' 条）', click: function () { try { shell.openPath(path.join(VAULT, '02-采用')); } catch (e) {} } },
+    { label: '打开搁置区（' + countIn('03-搁置') + ' 条）', click: function () { try { shell.openPath(path.join(VAULT, '03-搁置')); } catch (e) {} } },
+    { label: '打开垃圾桶（' + countIn('04-垃圾桶') + ' 条）', click: function () { try { shell.openPath(path.join(VAULT, '04-垃圾桶')); } catch (e) {} } },
+    {
+      label: '在 Obsidian 中搜索',
+      click: function () {
+        try { shell.openExternal('obsidian://search?vault=' + encodeURIComponent(obsVaultName())); }
+        catch (e) { try { shell.openPath(VAULT); } catch (e2) {} }
+      }
+    },
+    {
+      label: '立即备份一次',
+      click: function () { backupVault('手动'); if (tray) tray.setContextMenu(buildTrayMenu()); }
+    },
     { type: 'separator' },
     {
       label: '开机自动启动', type: 'checkbox', checked: isAutoStartOn(),
@@ -452,6 +566,31 @@ app.whenReady().then(function () {
   ipcMain.on('open-editor', function (e, p) { openEditor(p); });
   ipcMain.on('close-editor', closeEditor);
   ipcMain.on('open-folder', function () { try { shell.openPath(VAULT); } catch (err) {} });
+
+  // 告警条上的「重新选择数据目录」——让用户能直接修好，而不是只被告知哪儿坏了
+  ipcMain.on('pick-vault', function () {
+    const opts = {
+      title: '选择灵感箱的数据目录（里面应有 01-在杆 / 02-采用 / 03-搁置 / 04-垃圾桶）',
+      properties: ['openDirectory', 'createDirectory']
+    };
+    const parent = (overlay && !overlay.isDestroyed()) ? overlay : null;
+    const p = parent ? dialog.showOpenDialog(parent, opts) : dialog.showOpenDialog(opts);
+    p.then(function (r) {
+      if (r.canceled || !r.filePaths || !r.filePaths.length) return;
+      VAULT = r.filePaths[0];
+      cfg.vault = VAULT;
+      saveCfg();
+      try { store.ensureVault(VAULT); } catch (e) { log('创建目录失败：' + e.message); }
+      lastAction = null;
+      log('数据目录已改为：' + VAULT);
+      broadcast();
+    }).catch(function (e) { log('选择数据目录失败：' + e.message); });
+  });
+
+  ipcMain.on('open-config', function () {
+    try { shell.openPath(path.join(__dirname, 'config.json')); } catch (e) {}
+  });
+
   ipcMain.on('log', function (e, m) { log('[renderer] ' + m); });
 
   ipcMain.on('dismiss-intro', function () {
@@ -460,8 +599,12 @@ app.whenReady().then(function () {
   });
 
   ipcMain.on('data-add', function (e, p) {
-    const idea = store.add(VAULT, p.text, p.source, p.clip);
-    log('新增 ' + idea.filename + '  来源=' + (p.source || '—'));
+    try {
+      const idea = store.add(VAULT, p.text, p.source, p.clip);
+      log('新增 ' + idea.filename + '  来源=' + (p.source || '—'));
+    } catch (err) {
+      log('★新增失败：' + err.message);
+    }
     lastAction = null;   // 新增可能触发挤压，之前的撤销作废
     closeEditor();
     broadcast();
@@ -471,10 +614,14 @@ app.whenReady().then(function () {
     const ideas = store.scan(VAULT);
     const it = ideas.filter(function (x) { return x.id === p.id; })[0];
     if (it) {
-      if (p.text) it.text = p.text;
-      if (p.source) it.source = p.source;
-      store.save(VAULT, it);
-      log('保存 ' + it.filename);
+      try {
+        if (p.text) it.text = p.text;
+        if (p.source) it.source = p.source;
+        store.save(VAULT, it);
+        log('保存 ' + it.filename);
+      } catch (err) {
+        log('★保存失败：' + err.message);
+      }
     }
     closeEditor();
     broadcast();
@@ -546,6 +693,19 @@ app.whenReady().then(function () {
   if (cfg.autoStart && !isAutoStartOn()) {
     log('配置要求开机自启，但启动文件夹里没有快捷方式，补建');
     setTimeout(function () { setAutoStart(true); }, 1500);
+  }
+
+  // 启动自检结果写进日志（界面上由浮层渲染告警条）
+  const ps = selfCheck();
+  if (ps.length) ps.forEach(function (p) { log('★自检[' + p.level + '] ' + p.text + ' — ' + p.hint); });
+  else log('自检通过：数据目录 / Python / 检测脚本 / 托盘图标 均正常');
+
+  // 自动快照：启动 20 秒后一次，之后每 6 小时一次
+  if (cfg.backupDir) {
+    setTimeout(function () { backupVault('启动时'); }, 20000);
+    setInterval(function () { backupVault('定时'); }, 6 * 3600 * 1000);
+  } else {
+    log('自动备份未启用（config.json 的 backupDir 为空）');
   }
 });
 

@@ -7,6 +7,14 @@ const out = [];
 function say(s) { out.push(s); }
 
 function wipe(p) { if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true }); }
+
+// ensureVault 故意不再代建根目录（否则"路径写错"会被静默建出一个空目录），
+// 所以测试里要自己先把根目录建出来。
+function fresh() {
+  wipe(VAULT);
+  fs.mkdirSync(VAULT, { recursive: true });
+  store.ensureVault(VAULT);
+}
 function ago(days, hours) {
   return new Date(Date.now() - days * 86400000 - (hours || 0) * 3600000);
 }
@@ -16,8 +24,7 @@ function snap() {
              .sort().join('  ');
 }
 
-wipe(VAULT);
-store.ensureVault(VAULT);
+fresh();
 
 say('=== 1. 写入 5 条，年龄 0/1/2/3/5 天 ===');
 [[0, 0], [1, 0], [2, 0], [3, 0], [5, 0]].forEach(function (a, k) {
@@ -75,4 +82,50 @@ say('=== 6. 单条文件的真实内容 ===');
 const one = store.scan(VAULT)[0];
 if (one) say(fs.readFileSync(one.path, 'utf8'));
 
-fs.writeFileSync('D:/RailBox/overlay/_test_store_out.txt', out.join('\n'), 'utf8');
+say('');
+say('=== 7. 【缓刑豁免挤压】待淘汰的卡片不能被新卡顶掉 ===');
+fresh();
+[5, 3, 2, 1].forEach(function (d, k) {
+  store.add(VAULT, '测试 ' + k, '知乎', 'blue', ago(d));
+});
+const r7 = store.settle(VAULT, 3);
+say('首次结算：移出 ' + r7.moved.length + ' 条，标记待淘汰 ' + r7.marked.length +
+    ' 条（' + (r7.marked[0] ? r7.marked[0].ageDays + ' 天' : '—') + '）');
+const doomId = r7.marked[0] ? r7.marked[0].id : null;
+
+// 连续加 3 张新卡，每次都结算 —— 待淘汰那张必须活下来
+for (let k = 0; k < 3; k++) {
+  store.add(VAULT, '新卡 ' + k, 'X', 'red', new Date());
+  store.settle(VAULT, 3);
+}
+const after7 = store.scan(VAULT);
+const doomedAlive = after7.filter(function (i) {
+  return i.id === doomId && i.status === 'hanging';
+}).length;
+const hangingNow = after7.filter(function (i) { return i.status === 'hanging'; }).length;
+say('连续加 3 张新卡后：绳上 ' + hangingNow + ' 条；待淘汰那张 → ' +
+    (doomedAlive ? '仍在绳上 ✓' : '已被顶掉 ✗'));
+say('判定：' + (doomedAlive && hangingNow === 3 ? '通过（缓刑真正生效）' : '失败'));
+
+say('');
+say('=== 8. 【钉住豁免挤压】pinned 的卡片不能被挤压路径赶走 ===');
+fresh();
+[5, 4, 3, 2].forEach(function (d, k) {
+  store.add(VAULT, '测试 ' + k, '知乎', 'blue', ago(d));
+});
+// 把最旧那张（5 天）钉住，容量 3 → 必须挤掉一张，但绝不能挤它
+const asc8 = store.scan(VAULT).sort(function (a, b) { return a.createdDt - b.createdDt; });
+const pinTarget = asc8[0];
+pinTarget.pinned = true;
+store.save(VAULT, pinTarget);
+const r8 = store.settle(VAULT, 3);
+const after8 = store.scan(VAULT);
+const pinnedStill = after8.filter(function (i) {
+  return i.id === pinTarget.id && i.status === 'hanging';
+}).length;
+const movedAge = r8.moved.map(function (i) { return i.ageDays; });
+say('被挤掉的：' + (movedAge.join(', ') || '(无)') + ' 天   ← 应为 4 天的，而不是 5 天的');
+say('钉住的那张（5 天）：' + (pinnedStill ? '仍在绳上 ✓' : '被挤走了 ✗'));
+say('判定：' + (pinnedStill && movedAge.length === 1 && movedAge[0] === 4 ? '通过' : '失败'));
+
+fs.writeFileSync('D:/RailBox/overlay/dev/_test_store_out.txt', out.join('\n'), 'utf8');
