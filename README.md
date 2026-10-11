@@ -194,6 +194,18 @@ node dev/seed20.js             # 造 20 条假数据看满屏效果
 
 ---
 
+## Star
+
+如果这个工具帮你少堆了一个收藏夹、多做成了一件事——点个 Star，让更多「记了一堆却从来不做」的人看到它。
+
+它不需要你花钱，也不需要注册账号，就是让这个仓库在搜索和推荐里更容易被找到。
+
+<p align="center">
+  <a href="https://github.com/ZiOstudio/FadeLine/stargazers">
+    <img src="https://img.shields.io/static/v1?label=%E5%A6%82%E6%9E%9C%E5%AF%B9%E4%BD%A0%E6%9C%89%E5%B8%AE%E5%8A%A9&message=%E8%AF%B7%E7%82%B9%E4%B8%AA%20Star%20%E2%AD%90&color=ff69b4&style=for-the-badge&logo=github&logoColor=white" alt="如果这对你有帮助，请点个 Star" height="36">
+  </a>
+</p>
+
 ## 致谢
 
 **感谢 [@longhaiqwe123](https://x.com/longhaiqwe123)**——是他让我第一次看到把便签挂起来的做法。
