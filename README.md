@@ -11,6 +11,14 @@
   <img src="docs/hero.png" alt="三根绳子上挂着褪色程度不同的灵感卡片">
 </p>
 
+<p align="center">
+  <img alt="CI" src="https://github.com/ZiOstudio/FadeLine/actions/workflows/ci.yml/badge.svg">
+  <img alt="平台：Windows 10 / 11" src="https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%2010%20%2F%2011-0078d4">
+  <img alt="不需要 Node / Python，解压即用" src="https://img.shields.io/badge/%E4%BE%9D%E8%B5%96-%E6%97%A0%EF%BC%88%E8%A7%A3%E5%8E%8B%E5%8D%B3%E7%94%A8%EF%BC%89-3fb950">
+  <img alt="数据：本机 Markdown 文件" src="https://img.shields.io/badge/%E6%95%B0%E6%8D%AE-%E6%9C%AC%E6%9C%BA%20Markdown-d29922">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
+</p>
+
 ---
 
 ## 它解决什么
@@ -33,14 +41,16 @@
 
 到 [Releases](../../releases/latest) 下载 **`FadeLine-x.y.z-portable.zip`**，**解压后双击里面的 `灵光一挂.exe`**。
 
-**不需要提前装任何东西** —— 不用 Node、不用 Python。
+**不需要提前装任何东西** —— 不用 Node、不用 Python。**只支持 Windows 10 / 11。**
+
+压缩包约 110 MB（解压后约 270 MB，里面装着整个 Electron 运行时，这是它的代价）。
 
 > 第一次运行时 Windows 可能弹「Windows 已保护你的电脑」，点 **「更多信息」→「仍要运行」**。
 > 原因是这个 exe 没有买代码签名证书（一年几千块），**不是它有问题**。
 
-> 为什么是压缩包而不是单个 exe？单个 exe 需要一个打包工具（electron-builder），
-> 装它要多下载一百多 MB。压缩包版本不需要任何额外工具就能做出来，
-> **解压比装环境简单得多**。后续再换。
+> **为什么发的是压缩包，不是单个 exe？** 单个 exe 得用 electron-builder 打包，那是一整条几百 MB 的工具链；
+> 压缩包版本纯手工组装就行，不需要额外装任何东西 —— 代价是解压后文件多、体积略大。
+> 想要单文件版的话 `npm run build` 可以出（见文末「开发」）。
 
 ## 从源码运行
 
@@ -135,7 +145,7 @@
 
 老实列一下，免得你踩到：
 
-- **只能抓 Win 系列截图之外的东西** —— 这个工具管的是「想法」，不接管截图。系统截图还是原样落在你的图片文件夹
+- **不接管截图** —— 它管的是「想法」。系统截图（<kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>）还是原样落在你的图片文件夹
 - **来源识别有天花板** —— 桌面客户端拿不到网页标题（操作系统限制），只能到应用名。用 `siteNames` 可以按窗口标题关键词补
 - **全屏检测有盲区** —— 无边框窗口运行的游戏检测不到，要靠 `gameProcesses` 白名单
 - **只支持主显示器**
@@ -143,9 +153,11 @@
 - **热键可能被第三方键盘钩子吞掉** —— 某些安全软件 / 输入法会拦截全局热键。换一个组合即可
 - **exe 没有代码签名** —— 首次运行会有系统提示，见上面「下载即用」一节
 
+上面这些你踩到了，或者遇到了别的毛病？[开个 issue](../../issues/new/choose) —— 有模板，几条就够，不用写漂亮。
+
 ---
 
-## 维护者笔记：怎么发新版本
+## 发新版（维护者看）
 
 1. 改代码，`overlay/package.json` 里的 `version` 加一档（比如 `0.1.0` → `0.1.1`）
 2. 双击 **`打包.bat`**，等它跑完
@@ -177,7 +189,10 @@ node dev/test_layout.js        # 布局几何 + 纸张褪色算法
 node dev/seed20.js             # 造 20 条假数据看满屏效果
 ```
 
-打包成单个 exe：双击根目录的 **`打包.bat`**，或 `npm run build`。成品在 `dist/`。
+`dev/` 里剩下的脚本（截图、造图标、模拟点击、来源探测方式对比）都是开发时的一次性工具，不影响程序运行。
+
+打包：双击根目录的 **`打包.bat`** → `dist\FadeLine-x.y.z-portable.zip`（免安装压缩包，不需要额外工具）。
+想要单个 exe：先 `npm install`（会装上 electron-builder）再 `npm run build` → `dist\FadeLine-x.y.z.exe`。
 
 代码结构：
 
@@ -189,7 +204,7 @@ node dev/seed20.js             # 造 20 条假数据看满屏效果
 | `store.js` | 数据层，**唯一的写盘入口** |
 | `layout.js` | 布局与褪色的纯函数，可在 Node 里直接单测 |
 | `win32.js` | 用 koffi 直接调 Windows API（抓前台窗口 / 检测全屏）—— **不需要 Python** |
-| `foreground.py` / `check_game.py` | 上面那件事的 Python 旧版，现在只留作开发者的兜底路径 |
+| `legacy-python/` | 上面那件事的 Python 旧版，只在原生模块加载失败时兜底（正常用不到，见该目录里的 README） |
 
 设计上有三条跨文件契约，改代码前值得先读一下源码里的注释：
 
@@ -219,4 +234,4 @@ node dev/seed20.js             # 造 20 条假数据看满屏效果
 
 ## License
 
-[MIT](LICENSE) · 代码随便用。项目名与图标不在授权范围内，fork 请换自己的。
+[MIT](LICENSE) · 代码随便用、随便改、拿去商用也行，不用打招呼。只有一件事：**fork 或二次分发时换个名字和图标**，别让人误以为是同一个东西 —— 留好仓库里的版权声明就够了。

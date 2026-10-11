@@ -1,5 +1,4 @@
 const assert = require('assert');
-const fs = require('fs');
 const L = require('../layout.js');
 const out = [];
 let pass = 0, fail = 0;
@@ -154,4 +153,8 @@ t('ropePathFor: 二次贝塞尔控制点 y = top + 2*sag', function () {
 
 out.push('');
 out.push('通过 ' + pass + ' / 失败 ' + fail);
-fs.writeFileSync(__dirname + '/_test_layout_out.txt', out.join('\n'), 'utf8');
+
+// 直接打到 stdout，并用退出码表态 —— 否则 `npm test` 看起来什么都没发生，
+// CI 也拿不到失败信号。（以前是写进 dev/_test_*.txt，得自己去翻。）
+console.log(out.join('\n'));
+process.exit(fail ? 1 : 0);

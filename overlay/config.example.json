@@ -8,7 +8,7 @@
   "_vault": "四个文件夹所在的根目录。留空 = 用「文档\\灵光一挂」。",
 
   "pythonPath": "",
-  "_pythonPath": "留空会在启动时自动探测。抓来源和全屏检测需要它，探测不到就填 python.exe 的绝对路径。",
+  "_pythonPath": "平时用不到：抓来源和全屏检测默认走内置的 Windows API（koffi），不需要 Python。只有当原生模块加载失败时才会退回 legacy-python/ 里那两个脚本，这时才需要它——留空会在启动时自动探测，探测不到就填 python.exe 的绝对路径。",
 
   "backupDir": "",
   "backupKeep": 28,

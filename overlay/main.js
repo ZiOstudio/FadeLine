@@ -206,7 +206,7 @@ function readForeground() {
   // 回退：Python（老路子，只在原生模块不可用时才会走到）
   if (!cfg.pythonPath) return { app: '', title: '' };
   try {
-    const out = String(cp.execFileSync(cfg.pythonPath, [path.join(__dirname, 'foreground.py')],
+    const out = String(cp.execFileSync(cfg.pythonPath, [path.join(__dirname, 'legacy-python', 'foreground.py')],
       { timeout: 3000, encoding: 'ascii' })).trim();
     if (!out) return { app: '', title: '' };
     return JSON.parse(Buffer.from(out, 'base64').toString('utf8'));
@@ -636,7 +636,7 @@ function queryGameState(cb) {
     catch (e) { log('原生全屏检测失败：' + e.message); }
   }
   if (!cfg.pythonPath) { cb({ state: 5, app: '' }); return; }
-  cp.execFile(cfg.pythonPath, [path.join(__dirname, 'check_game.py')],
+  cp.execFile(cfg.pythonPath, [path.join(__dirname, 'legacy-python', 'check_game.py')],
     { timeout: 2500, encoding: 'ascii', windowsHide: true },
     function (err, stdout) {
       if (err || !stdout) return cb({ state: 5, app: '' });

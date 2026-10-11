@@ -45,7 +45,15 @@ Write-Host ("  version : " + $ver)
 Write-Host ""
 
 # A running instance holds the exe open, so shut it down first.
-Get-Process -Name $name, 'electron' -ErrorAction SilentlyContinue | Stop-Process -Force
+# Only our own product, plus an electron.exe that actually lives inside this project's
+# node_modules - a blanket -Name 'electron' would also kill whatever other Electron app
+# the developer happens to be running.
+$self = $app
+Get-Process -ErrorAction SilentlyContinue | Where-Object {
+  if ($_.ProcessName -eq $name) { return $true }
+  if ($_.ProcessName -ne 'electron') { return $false }
+  try { return ($_.Path -and $_.Path.StartsWith($self, [StringComparison]::OrdinalIgnoreCase)) } catch { return $false }
+} | Stop-Process -Force
 Start-Sleep -Seconds 2
 
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
@@ -57,30 +65,39 @@ $ed = Split-Path -Parent $exeSrc
 if (-not (Test-Path $exeSrc)) {
   throw "Electron runtime not found at $ed - run 'npm install' in overlay first"
 }
-Write-Host "  [1/5] copying Electron runtime..."
+Write-Host "  [1/6] copying Electron runtime..."
 Copy-Item (Join-Path $ed '*') $out -Recurse -Force
+
+# 1b. Electron ships ~50 locale .pak files (tens of MB). The app's own UI is Chinese and
+#     Electron's fallback is en-US, so keep those two and drop the rest.
+$locales = Join-Path $out 'locales'
+if (Test-Path $locales) {
+  $keep = @('zh-CN.pak', 'en-US.pak')
+  Get-ChildItem $locales -Filter '*.pak' | Where-Object { $keep -notcontains $_.Name } | Remove-Item -Force
+  Write-Host ("  [2/6] locales trimmed to " + (@(Get-ChildItem $locales).Count) + " file(s)")
+}
 
 # 2. App files (mirrors the electron-builder "files" whitelist: no dev/, no logs,
 #    no local config.json - otherwise this machine's settings get baked in)
-Write-Host "  [2/5] copying app files..."
+Write-Host "  [3/6] copying app files..."
 $skip = @('dev', 'node_modules', 'overlay.log', 'config.json', 'config.json.bak')
 Get-ChildItem $app |
   Where-Object { $skip -notcontains $_.Name -and $_.Name -notlike '_*' } |
   ForEach-Object { Copy-Item $_.FullName $appDst -Recurse -Force }
 
 # 3. Native modules (koffi calls the Windows APIs, it must ship as-is)
-Write-Host "  [3/5] copying native modules..."
+Write-Host "  [4/6] copying native modules..."
 foreach ($m in @('koffi', '@koromix')) {
   $src = Join-Path $app "node_modules\$m"
   if (Test-Path $src) { Copy-Item $src (Join-Path $appDst "node_modules\$m") -Recurse -Force }
 }
 
 # 4. Rename the executable
-Write-Host "  [4/5] renaming executable..."
+Write-Host "  [5/6] renaming executable..."
 Move-Item (Join-Path $out 'electron.exe') (Join-Path $out "$name.exe") -Force
 
 # 5. Zip
-Write-Host "  [5/5] compressing (roughly 270 MB, this takes a while)..."
+Write-Host "  [6/6] compressing (roughly 270 MB, this takes a while)..."
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path $out -DestinationPath $zip -CompressionLevel Optimal -Force
 

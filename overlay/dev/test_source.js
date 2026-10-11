@@ -23,12 +23,12 @@ function friendlySource(fg) {
 const out = [];
 
 function variants() {
-  const base = [DIR + '/foreground.py'];
+  const base = [DIR + '/legacy-python/foreground.py'];
   const tries = [
     { name: 'execFileSync(ascii, windowsHide)', fn: () => cp.execFileSync(cfg.pythonPath, base, { timeout: 5000, encoding: 'ascii', windowsHide: true }) },
     { name: 'execFileSync(ascii)', fn: () => cp.execFileSync(cfg.pythonPath, base, { timeout: 5000, encoding: 'ascii' }) },
     { name: 'spawnSync(stdout buffer)', fn: () => cp.spawnSync(cfg.pythonPath, base, { timeout: 5000, windowsHide: true }).stdout },
-    { name: 'shell:true', fn: () => cp.execSync('"' + cfg.pythonPath + '" "' + DIR + '/foreground.py"', { timeout: 5000, windowsHide: true }) }
+    { name: 'shell:true', fn: () => cp.execSync('"' + cfg.pythonPath + '" "' + DIR + '/legacy-python/foreground.py"', { timeout: 5000, windowsHide: true }) }
   ];
   return tries;
 }

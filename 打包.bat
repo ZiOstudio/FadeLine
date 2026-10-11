@@ -30,27 +30,14 @@ if not exist "node_modules\electron\dist\electron.exe" (
   echo.
 )
 
-if exist "node_modules\electron-builder" (
-  echo   用 electron-builder 打包（产出单个 exe）...
+echo   开始打包（手工组装，不需要额外工具）...
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "dev\package-portable.ps1"
+if errorlevel 1 (
   echo.
-  call npx electron-builder --win --x64
-  if errorlevel 1 (
-    echo.
-    echo   [失败] 打包没成功。往上翻看错误信息。
-    pause
-    exit /b 1
-  )
-) else (
-  echo   没装 electron-builder —— 改用「手工组装」。
-  echo   效果一样，只是产物是个压缩包而不是单个 exe，不需要额外装工具。
-  echo.
-  powershell -NoProfile -ExecutionPolicy Bypass -File "dev\package-portable.ps1"
-  if errorlevel 1 (
-    echo.
-    echo   [失败] 打包没成功。往上翻看错误信息。
-    pause
-    exit /b 1
-  )
+  echo   [失败] 打包没成功。往上翻看错误信息。
+  pause
+  exit /b 1
 )
 
 echo.
@@ -62,5 +49,8 @@ for %%f in ("%~dp0dist\*.zip" "%~dp0dist\*.exe") do echo     %%~nxf   (%%~zf 字
 echo.
 echo   下一步：把这个文件传到 GitHub 的 Releases 页面
 echo   ^(不是 git 仓库里 —— 它有上百 MB，塞进仓库会越滚越大^)
+echo.
+echo   想要单个 exe 而不是压缩包：在 overlay 里 npm install 之后跑 npm run build，
+echo   产物是 dist\FadeLine-版本号.exe ^(体积更大，启动稍慢，但双击即用^)
 echo.
 pause

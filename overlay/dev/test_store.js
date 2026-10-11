@@ -128,4 +128,12 @@ say('被挤掉的：' + (movedAge.join(', ') || '(无)') + ' 天   ← 应为 4 
 say('钉住的那张（5 天）：' + (pinnedStill ? '仍在绳上 ✓' : '被挤走了 ✗'));
 say('判定：' + (pinnedStill && movedAge.length === 1 && movedAge[0] === 4 ? '通过' : '失败'));
 
-fs.writeFileSync(__dirname + '/_test_store_out.txt', out.join('\n'), 'utf8');
+// 直接打到 stdout，并用退出码表态（原因同 test_layout.js）。
+const text = out.join('\n');
+console.log(text);
+const judged = out.filter(function (l) { return l.indexOf('判定：') === 0; });
+const failed = judged.filter(function (l) { return l.indexOf('失败') >= 0; }).length;
+const sections = out.filter(function (l) { return l.indexOf('=== ') === 0; }).length;
+console.log('');
+console.log('段落 ' + sections + ' / 判定 ' + (judged.length - failed) + ' / 失败 ' + failed);
+process.exit(failed ? 1 : 0);

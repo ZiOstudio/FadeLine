@@ -1,0 +1,19 @@
+# 默认按文本处理，检出时换成本机换行；仓库里统一存 LF。
+* text=auto eol=lf
+
+# Windows 批处理必须保持 CRLF：cmd.exe 对 LF 结尾的 .bat 在某些情况下会读错行。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# PowerShell 脚本保持 CRLF 更省事（旧版 Windows PowerShell 对无 BOM 的 UTF-8 也挑）。
+*.ps1 text eol=crlf
+
+# 二进制，别做任何换行转换。
+*.png binary
+*.ico binary
+*.exe binary
+*.zip binary
+
+# 语言统计：把 Markdown 和锁文件排除在“代码”之外，仓库首页的语种条更准。
+*.md linguist-documentation
+package-lock.json linguist-generated
