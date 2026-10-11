@@ -12,6 +12,12 @@
 </p>
 
 <p align="center">
+  <img src="docs/demo.gif" alt="悬停到哪根绳哪根就亮、点卡片就地改、鼠标推到顶端收起、Ctrl+Alt+Q 再放下来" width="780">
+</p>
+
+<p align="center"><sub>悬停到哪根绳，哪根就亮起来 ｜ 点一下卡片就地改 ｜ <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Q</kbd> 随时收起 / 放出</sub></p>
+
+<p align="center">
   <img alt="CI" src="https://github.com/ZiOstudio/FadeLine/actions/workflows/ci.yml/badge.svg">
   <img alt="平台：Windows 10 / 11" src="https://img.shields.io/badge/%E5%B9%B3%E5%8F%B0-Windows%2010%20%2F%2011-0078d4">
   <img alt="不需要 Node / Python，解压即用" src="https://img.shields.io/badge/%E4%BE%9D%E8%B5%96-%E6%97%A0%EF%BC%88%E8%A7%A3%E5%8E%8B%E5%8D%B3%E7%94%A8%EF%BC%89-3fb950">
@@ -186,10 +192,12 @@ npm test                       # 跑单元测试（数据层 + 布局，共 27 �
 
 node dev/test_store.js         # 数据层：增删移 + 淘汰规则
 node dev/test_layout.js        # 布局几何 + 纸张褪色算法
-node dev/seed20.js             # 造 20 条假数据看满屏效果
+node dev/seed20.js             # 造 20 条假数据看满屏效果（目录要先存在）
+
+python dev/make_demo_gif.py    # 录一段演示动图到 docs/demo.gif（要 Pillow + ffmpeg）
 ```
 
-`dev/` 里剩下的脚本（截图、造图标、模拟点击、来源探测方式对比）都是开发时的一次性工具，不影响程序运行。
+`dev/` 里剩下的脚本（截图、造图标、模拟点击、录演示、来源探测方式对比）都是开发时的一次性工具，不影响程序运行。
 
 打包：双击根目录的 **`打包.bat`** → `dist\FadeLine-x.y.z-portable.zip`（免安装压缩包，不需要额外工具）。
 想要单个 exe：先 `npm install`（会装上 electron-builder）再 `npm run build` → `dist\FadeLine-x.y.z.exe`。
