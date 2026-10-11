@@ -13,7 +13,7 @@
   "backupDir": "",
   "backupKeep": 28,
 
-  "autoStart": false,
+  "autoStart": true,
   "obsidianVault": "",
   "demoMode": false,
 

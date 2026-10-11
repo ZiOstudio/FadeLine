@@ -77,9 +77,10 @@ const CFG_DEFAULTS = {
   backupKeep: 28,
   _backupKeep: '保留最近多少份快照。每 6 小时一份，28 份约 7 天。',
 
-  autoStart: false,
-  _autoStart: '开机自动启动。程序会在 Windows 启动文件夹里放一个指向自己的快捷方式；'
-            + '托盘菜单里可以开关。',
+  autoStart: true,
+  _autoStart: '开机自动启动，默认开。程序会在 Windows 启动文件夹里放一个指向自己的快捷方式，'
+            + '开机就把绳子挂好；托盘菜单里随时可以关。'
+            + '挪动过程序文件夹（portable 版）之后，重新打开一次程序会自动把快捷方式指向新位置。',
 
   obsidianVault: '',
   _obsidianVault: 'Obsidian 仓库名，用于托盘菜单的「在 Obsidian 中搜索」。'
