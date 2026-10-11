@@ -3,12 +3,51 @@
   "version": "0.1.0",
   "description": "晾衣杆 · 把灵感挂到一根绳子上，让时间替你淘汰",
   "main": "main.js",
+  "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "test": "node dev/test_layout.js && node dev/test_store.js"
+    "test": "node dev/test_layout.js && node dev/test_store.js",
+    "build": "electron-builder --win --x64"
   },
-  "license": "MIT",
+  "dependencies": {
+    "koffi": "^3.3.3"
+  },
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.zio.railbox",
+    "productName": "晾衣杆",
+    "directories": {
+      "output": "../dist",
+      "buildResources": "."
+    },
+    "files": [
+      "**/*",
+      "!dev/**",
+      "!*.log",
+      "!*.md",
+      "!config.json",
+      "!config.json.bak",
+      "!_*"
+    ],
+    "asarUnpack": [
+      "**/node_modules/@koromix/**"
+    ],
+    "win": {
+      "icon": "icon.ico",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "晾衣杆-${version}.exe"
+    }
   }
 }

@@ -4,18 +4,30 @@ const fs = require('fs');
 const cp = require('child_process');
 const store = require('./store');
 
-const LOG = path.join(__dirname, 'overlay.log');
+/* 打包之后代码会被塞进 app.asar，那是个只读的归档 —— 配置和日志必须写到
+   别处，否则启动就崩（或者改了设置存不下来）。开发时沿用同目录，方便调试。 */
+const IN_ASAR = __dirname.indexOf('app.asar') >= 0;
+const DATA_DIR = IN_ASAR ? app.getPath('userData') : __dirname;
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+
+const LOG = path.join(DATA_DIR, 'overlay.log');
 function log(m) {
   try { fs.appendFileSync(LOG, new Date().toISOString().slice(11, 23) + '  ' + m + '\n'); } catch (e) {}
 }
 process.on('uncaughtException', (e) => log('uncaught: ' + (e && e.stack || e)));
+
+// 原生 win32（koffi）：在进程内直接调 Windows API，替代原来的 foreground.py / check_game.py。
+// 这样成品发给普通用户时不需要对方先装 Python，也不用每次 spawn 子进程。
+const win32 = require('./win32');
+const NATIVE_OK = win32.init();
+if (!NATIVE_OK) log('原生模块不可用，来源识别与全屏检测将回退到 Python：' + win32.reason());
 
 /* ------------------------------------------------ 配置
 
    首次运行会自己生成 config.json：数据目录默认落到「文档\晾衣杆」，
    Python 自动探测。目标是 clone 下来双击就能跑，什么都不用手配。 */
 
-const CFG_PATH = path.join(__dirname, 'config.json');
+const CFG_PATH = path.join(DATA_DIR, 'config.json');
 const FIRST_RUN = !fs.existsSync(CFG_PATH);
 
 // 来源识别的默认表放在代码里，而不是配置里 —— 这是应用自带的知识。
@@ -57,8 +69,8 @@ const CFG_DEFAULTS = {
         + '移动或改名后要跟着改这里，否则绳子会是空的。',
 
   pythonPath: '',
-  _pythonPath: '抓前台窗口标题、检测全屏用。留空会在启动时自动探测；'
-             + '探测不到就填一个 python.exe 的绝对路径。',
+  _pythonPath: '通常留空即可 —— 来源识别和全屏检测默认走内置的原生模块，不需要 Python。'
+             + '只有原生模块加载失败时才会回退到这里，那时填一个 python.exe 的绝对路径。',
 
   backupDir: '',
   _backupDir: '自动快照存放处。默认放在数据目录旁边。留空字符串则关闭备份。',
@@ -148,7 +160,8 @@ if (FIRST_RUN) {
   } catch (e) {
     log('首次运行创建数据目录失败：' + e.message);
   }
-  log('首次运行：Python = ' + (cfg.pythonPath || '(未探测到)'));
+  log('首次运行：原生模块 = ' + (NATIVE_OK ? '可用' : '不可用（将回退 Python）'));
+  if (!NATIVE_OK && cfg.pythonPath) log('             回退 Python = ' + cfg.pythonPath);
   saveCfg();
 }
 
@@ -185,6 +198,13 @@ const SITE_RULES = [
 ];
 
 function readForeground() {
+  // 首选：原生调用，无子进程、无外部依赖
+  if (NATIVE_OK) {
+    try { return win32.foreground(); }
+    catch (e) { log('原生抓前台失败：' + e.message); }
+  }
+  // 回退：Python（老路子，只在原生模块不可用时才会走到）
+  if (!cfg.pythonPath) return { app: '', title: '' };
   try {
     const out = String(cp.execFileSync(cfg.pythonPath, [path.join(__dirname, 'foreground.py')],
       { timeout: 3000, encoding: 'ascii' })).trim();
@@ -479,15 +499,15 @@ function selfCheck() {
     });
   }
 
-  if (!fs.existsSync(cfg.pythonPath)) {
+  // 来源识别与全屏检测：原生模块（koffi）能用就万事大吉，它是首选路径不需要任何外部环境。
+  // 只有原生模块没加载、且又没有 Python 兜底时，才降级并告警。
+  if (!NATIVE_OK && !fs.existsSync(cfg.pythonPath)) {
     problems.push({
-      level: 'error', fix: 'python',
-      text: '找不到 Python',
-      hint: cfg.pythonPath + ' — 来源抓取与游戏检测都会失效'
+      level: 'warn', fix: 'python',
+      text: '来源识别与全屏检测不可用',
+      hint: '原生模块未加载（' + win32.reason() + '），也没找到 Python 兜底。'
+          + '其余功能不受影响。'
     });
-  }
-  if (!fs.existsSync(path.join(__dirname, 'check_game.py'))) {
-    problems.push({ level: 'error', text: '缺少 check_game.py', hint: '游戏 / 全屏检测会失效' });
   }
   if (!fs.existsSync(path.join(__dirname, 'tray.png'))) {
     problems.push({ level: 'warn', text: '缺少 tray.png', hint: '托盘图标会显示为空白' });
@@ -610,6 +630,12 @@ function releaseHotkeys() {
 // 一次 spawn 同时拿到全屏状态和前台进程名，base64 传避免编码问题。
 // 用 execFile（异步）而不是 execFileSync，避免每 2 秒阻塞主进程 150ms。
 function queryGameState(cb) {
+  // 首选：原生调用。原来每次都要 spawn 一个 python.exe（约 150ms），现在直接读。
+  if (NATIVE_OK) {
+    try { cb(win32.gameState()); return; }
+    catch (e) { log('原生全屏检测失败：' + e.message); }
+  }
+  if (!cfg.pythonPath) { cb({ state: 5, app: '' }); return; }
   cp.execFile(cfg.pythonPath, [path.join(__dirname, 'check_game.py')],
     { timeout: 2500, encoding: 'ascii', windowsHide: true },
     function (err, stdout) {
@@ -811,9 +837,11 @@ app.whenReady().then(function () {
   }
 
   // 启动自检结果写进日志（界面上由浮层渲染告警条）
+  log('前台抓取后端：' + (NATIVE_OK ? '内置原生模块' : 'Python 回退'
+      + (cfg.pythonPath ? '（' + cfg.pythonPath + '）' : '（未配置）')));
   const ps = selfCheck();
   if (ps.length) ps.forEach(function (p) { log('★自检[' + p.level + '] ' + p.text + ' — ' + p.hint); });
-  else log('自检通过：数据目录 / Python / 检测脚本 / 托盘图标 均正常');
+  else log('自检通过：数据目录 / 前台抓取 / 托盘图标 均正常');
 
   // 自动快照：启动 20 秒后一次，之后每 6 小时一次
   if (cfg.backupDir) {
