@@ -235,7 +235,6 @@ let W = 0, H = 0, SAG = 56, PER_ROW = 7, ROPE_TOP = 180, ROW_STRIDE = 330,
 const slots = new Map();
 let drag = null, revealRaf = 0, editingId = null, edgeTimer = 0, edgeArmed = true;
 
-const yOnRope = function (top, t) { return top + 4 * SAG * t * (1 - t); };
 const ropeTopOf = function (r) { return ROPE_TOP + r * ROW_STRIDE; };
 
 function esc(s) {
@@ -304,12 +303,14 @@ function computeLayout() {
   ROW_STRIDE = lay.rowStride;
   MAX_ROPES = lay.maxRopes;
   ROPE_COUNT = lay.ropes;
-  addBtn.style.left = '20px';
+  // 加号固定在第一根绳子正上方居中（首次渲染前 offsetWidth 可能是 0，用 46px 兜底）
+  const addW = addBtn.offsetWidth || 46;
+  addBtn.style.left = Math.round(W / 2 - addW / 2) + 'px';
   addBtn.style.top = (ROPE_TOP - 58) + 'px';
 }
 
-function placeOf(k) {
-  return L.placeOf(k, W, PER_ROW, ROPE_TOP, SAG, ROW_STRIDE);
+function placeOf(k, nRope) {
+  return L.placeOf(k, W, PER_ROW, ROPE_TOP, SAG, ROW_STRIDE, nRope);
 }
 
 /* 一个更像真夹子的 SVG 夹子：柱面明暗 + 中缝 + 上下两道箍 + 转轴 */
@@ -362,6 +363,13 @@ function sync(animateNew) {
   const shown = Math.min(list.length, ROPE_COUNT * PER_ROW);
   const keep = {};
 
+  // 每根绳上实际挂了几张：未满的那根居中，铺满的那根照旧铺开
+  const ropeCounts = [];
+  for (let k = 0; k < shown; k++) {
+    const r = Math.floor(k / PER_ROW);
+    ropeCounts[r] = (ropeCounts[r] || 0) + 1;
+  }
+
   const emptyEl = cardsEl.querySelector('div[data-empty]');
   if (!shown) {
     if (!emptyEl) {
@@ -370,7 +378,7 @@ function sync(animateNew) {
       s.dataset.empty = '1';
       s.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);top:' +
         (top + SAG + 40) + 'px;font-size:14px;color:#C9C6BD;';
-      s.textContent = '绳子还是空的 · 点左上角的 + 挂第一条';
+      s.textContent = '绳子还是空的 · 点正上方的 + 挂第一条';
       cardsEl.appendChild(s);
     }
   } else if (emptyEl) {
@@ -378,7 +386,9 @@ function sync(animateNew) {
   }
 
   for (let k = 0; k < shown; k++) {
-    const it = list[k], p = placeOf(k), c = cardHTML(it);
+    const it = list[k];
+    const p = placeOf(k, ropeCounts[Math.floor(k / PER_ROW)]);
+    const c = cardHTML(it);
     keep[it.id] = 1;
     const tf = 'translate(' + Math.round(p.x - CARD_W / 2) + 'px, ' +
                Math.round(p.y + SLOT_PAD) + 'px)';
@@ -698,8 +708,12 @@ addBtn.addEventListener('click', function (e) {
   e.stopPropagation();
   if (!showing || !window.rail) return;
   introDone('点了新增');
-  const top = ropeTopOf(0), t = 0.5 / PER_ROW;
-  const x = W * t, y = yOnRope(top, t);
+  // 新卡片会成为第一根绳上的第 0 张：按「加进来之后这根绳有几张」算它落在哪，
+  // 否则未满居中时编辑窗会照着铺满模式的老位置弹出来。
+  const onRope0 = Math.min(listOnRopes().length, PER_ROW);
+  const nRope = Math.min(onRope0 + 1, PER_ROW);
+  const p = L.placeOf(0, W, PER_ROW, ROPE_TOP, SAG, ROW_STRIDE, nRope);
+  const x = p.x, y = p.y;
   window.rail.log('点击新增');
   window.rail.openEditor({
     id: '', mode: 'new', text: '', source: '', clip: 'blue',

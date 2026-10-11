@@ -15,6 +15,15 @@
   const FOLDER_MARGIN = 256;   // 底部文件收藏夹 + 边距预留
   const EXPIRE_DAYS = 14;      // 与 store.js 的 EXPIRE_DAYS 必须一致，单测里有交叉校验
 
+  // 未满居中：标签之间用固定小间距，但随屏幕宽度轻微缩放 ——
+  // 大屏有呼吸感，小屏也不至于把两张卡挤在一起。
+  const GAP_CENTROID_MIN = 24;
+  const GAP_CENTROID_RATIO = 0.012;
+
+  function centroidGap(W) {
+    return Math.max(GAP_CENTROID_MIN, Math.round(W * GAP_CENTROID_RATIO));
+  }
+
   /**
    * 由屏幕逻辑尺寸推布局。
    * W/H 逻辑宽高，perRowHint 为外部指定值（0 = 自动），ideaCount 用于算实到绳数。
@@ -38,10 +47,29 @@
     return 'M 0 ' + top + ' Q ' + (W / 2) + ' ' + (top + 2 * sag) + ' ' + W + ' ' + top;
   }
 
-  /* 全局第 k 张卡（k=0 最新）落在哪：哪根绳、绳内参数 t、屏幕坐标 */
-  function placeOf(k, W, perRow, ropeTop, sag, rowStride) {
-    const r = Math.floor(k / perRow), i = k % perRow, t = (i + 0.5) / perRow;
+  /* 全局第 k 张卡（k=0 最新）落在哪：哪根绳、绳内参数 t、屏幕坐标
+   *
+   * nRope = 这根绳上实际挂了几张（不传 = 保持老行为）：
+   *   nRope <  perRow → 居中模式：整组以屏幕中心为轴对称，最新那张在中心偏左，
+   *                     新卡片从左侧加入、旧的整体往右挪
+   *   nRope >= perRow → 铺满模式：从左到右均匀铺开
+   *
+   * 居中模式先算卡片中心 x，再用 t = x / W 反推绳子上的垂足 ——
+   * 绳子的贝塞尔曲线满足 x(t) = W·t，所以卡片一定挂在绳子上，不会悬空。 */
+  function placeOf(k, W, perRow, ropeTop, sag, rowStride, nRope) {
+    const r = Math.floor(k / perRow), i = k % perRow;
     const top = ropeTop + r * rowStride;
+
+    if (nRope !== undefined && nRope < perRow) {
+      const gap = centroidGap(W);
+      const groupWidth = nRope * CARD_W + (nRope - 1) * gap;
+      const startX = (W - groupWidth) / 2;
+      const x = startX + i * (CARD_W + gap) + CARD_W / 2;
+      const t = x / W;
+      return { r: r, t: t, x: x, y: top + 4 * sag * t * (1 - t) };
+    }
+
+    const t = (i + 0.5) / perRow;
     return {
       r: r, t: t, x: W * t,
       y: top + 4 * sag * t * (1 - t)
@@ -110,7 +138,8 @@
   return {
     CARD_W: CARD_W, CARD_H: CARD_H, ROW_GAP: ROW_GAP, SLOT_PAD: SLOT_PAD,
     MAX_ROPES_HARD: MAX_ROPES_HARD, EXPIRE_DAYS: EXPIRE_DAYS,
+    GAP_CENTROID_MIN: GAP_CENTROID_MIN, GAP_CENTROID_RATIO: GAP_CENTROID_RATIO,
     computeLayout: computeLayout, ropePathFor: ropePathFor,
-    placeOf: placeOf, aging: aging, sandglass: sandglass
+    placeOf: placeOf, centroidGap: centroidGap, aging: aging, sandglass: sandglass
   };
 });

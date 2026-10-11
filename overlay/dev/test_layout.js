@@ -151,6 +151,39 @@ t('ropePathFor: 二次贝塞尔控制点 y = top + 2*sag', function () {
   assert.ok(d.indexOf('Q 1280 293') >= 0);
 });
 
+t('居中模式: 只有一张时，卡片中心就在屏幕正中、吊在绳子最低点', function () {
+  const l = L.computeLayout(2560, 1392, null, 21);
+  const p = L.placeOf(0, 2560, l.perRow, l.ropeTop, l.sag, l.rowStride, 1);
+  assert.strictEqual(p.x, 1280);
+  assert.strictEqual(p.t, 0.5);
+  assert.strictEqual(p.y, l.ropeTop + l.sag, 't=0.5 正好是绳子最低点');
+});
+
+t('居中模式: 两张关于屏幕中心对称，间距 = 卡宽 + centroidGap', function () {
+  const l = L.computeLayout(2560, 1392, null, 21);
+  const a = L.placeOf(0, 2560, l.perRow, l.ropeTop, l.sag, l.rowStride, 2);
+  const b = L.placeOf(1, 2560, l.perRow, l.ropeTop, l.sag, l.rowStride, 2);
+  assert.strictEqual(2560 - b.x, a.x, '两张要关于 W/2 对称');
+  assert.strictEqual(b.x - a.x, L.CARD_W + L.centroidGap(2560), '中心间距 = 卡宽 + 间距');
+  assert.ok(a.x > L.CARD_W / 2, '最左那张不能贴左边缘');
+});
+
+t('居中模式: 未满不越界；nRope 达到 perRow 就切回铺满的第 0 格', function () {
+  const l = L.computeLayout(2560, 1392, null, 21);
+  const last = L.placeOf(l.perRow - 1, 2560, l.perRow, l.ropeTop, l.sag, l.rowStride, l.perRow - 1);
+  assert.ok(last.x + L.CARD_W / 2 <= 2560, '未满模式最右那张要留在屏幕内');
+  const full0 = L.placeOf(0, 2560, l.perRow, l.ropeTop, l.sag, l.rowStride, l.perRow);
+  assert.ok(Math.abs(full0.x - 2560 * (0.5 / l.perRow)) < 1e-9, '满员时回到铺满模式的第 0 格');
+});
+
+t('居中模式: 每根绳独立判断（第二根绳只有一张时也居中）', function () {
+  const l = L.computeLayout(2560, 1392, null, 21);
+  const p = L.placeOf(l.perRow, 2560, l.perRow, l.ropeTop, l.sag, l.rowStride, 1);
+  assert.strictEqual(p.r, 1, '第 7 张（perRow=7）属于第 1 根绳');
+  assert.strictEqual(p.x, 1280, '第二根绳上只有一张时也居中');
+  assert.strictEqual(p.y, l.ropeTop + l.rowStride + l.sag);
+});
+
 out.push('');
 out.push('通过 ' + pass + ' / 失败 ' + fail);
 
