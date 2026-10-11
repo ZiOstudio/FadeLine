@@ -1,5 +1,10 @@
 # 灵光一挂 · FadeLine
 
+<p align="center">
+  <a href="https://github.com/ZiOstudio/FadeLine/stargazers"><img height="36" alt="如果对你有帮助，请点个 Star" src="https://img.shields.io/static/v1?label=%E5%A6%82%E6%9E%9C%E5%AF%B9%E4%BD%A0%E6%9C%89%E5%B8%AE%E5%8A%A9&message=%E8%AF%B7%E7%82%B9%E4%B8%AA%20Star%20%E2%AD%90&color=ff69b4&style=for-the-badge&logo=github&logoColor=white"></a>
+  <a href="https://github.com/ZiOstudio/FadeLine/stargazers"><img height="36" alt="GitHub stars" src="https://img.shields.io/github/stars/ZiOstudio/FadeLine?style=social"></a>
+</p>
+
 > **把想法挂到绳子上：位置就那么多，挂满了最旧的就得让路。别的工具帮你记住，它帮你忘记。**
 
 <p align="center">
