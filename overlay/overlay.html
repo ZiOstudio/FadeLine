@@ -84,7 +84,7 @@
     display:flex;align-items:center;justify-content:center;
     font-size:24px;line-height:1;color:#A9A59B;
     pointer-events:auto;cursor:pointer;
-    opacity:0;transition:opacity .2s,transform .18s,color .18s,border-color .18s;
+    opacity:0;transition:opacity .2s,transform .18s,color .18s,border-color .18s,left .24s ease,top .24s ease;
     box-shadow:0 1px 2px rgba(60,55,45,.06);
   }
   body.showing #add{opacity:1;}
@@ -303,10 +303,24 @@ function computeLayout() {
   ROW_STRIDE = lay.rowStride;
   MAX_ROPES = lay.maxRopes;
   ROPE_COUNT = lay.ropes;
-  // 加号固定在第一根绳子正上方居中（首次渲染前 offsetWidth 可能是 0，用 46px 兜底）
+  // 加号：只有一张卡片时浮在它的夹子正上方（夹子中心），多张时回到固定的居中位置，
+  // 不再跟着第一张卡片移动。垂直统一按加号所在 x 处的绳子高度往上留 12px ——
+  // 夹子顶边在绳子往上 9px 处，留 12px 不会压到夹子；居中处正好是绳子最低点。
   const addW = addBtn.offsetWidth || 46;
-  addBtn.style.left = Math.round(W / 2 - addW / 2) + 'px';
-  addBtn.style.top = (ROPE_TOP - 58) + 'px';
+  const addH = addBtn.offsetHeight || 46;
+  const addX = (listOnRopes().length === 1) ? firstTagX() : W / 2;
+  const addT = Math.max(0, Math.min(1, addX / W));
+  const ropeY = ROPE_TOP + 4 * SAG * addT * (1 - addT);
+  addBtn.style.left = Math.round(addX - addW / 2) + 'px';
+  addBtn.style.top = Math.round(ropeY - addH - 12) + 'px';
+}
+
+/* 第一根绳上最新那张的夹子中心 x —— 加号跟着它走；绳子空着就用屏幕中心 */
+function firstTagX() {
+  const list = listOnRopes();
+  if (!list.length || !W) return W / 2;
+  const nRope0 = Math.min(list.length, PER_ROW);
+  return L.placeOf(0, W, PER_ROW, ROPE_TOP, SAG, ROW_STRIDE, nRope0).x;
 }
 
 function placeOf(k, nRope) {
