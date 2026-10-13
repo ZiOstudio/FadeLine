@@ -91,8 +91,9 @@ function foreground() {
  * 等价于原来的 check_game.py：{state, app}
  *
  * state 是 SHQueryUserNotificationState 的返回值：
- *   1 不在场 · 2 有全屏窗口/演示（宽泛，全屏看视频也会命中）
- *   3 全屏 D3D（基本就是全屏游戏）· 4 投屏 · 5 正常桌面 · 6 安静时间
+ *   1 不在场 · 2 有全屏窗口（绝大多数全屏游戏在 Win11 上报的就是这个）· 3 全屏 D3D
+ *   4 投屏 · 5 正常桌面 · 6 安静时间
+ * main.js 把 1/2/3/4/6 全部当作「别打扰」，所以不依赖 3 也能认出全屏游戏。
  * 拿不到就返回 5（正常），宁可少收一次浮层，也不要误收。
  */
 function gameState() {

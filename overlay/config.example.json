@@ -18,10 +18,10 @@
   "demoMode": false,
 
   "gameProcesses": [
-    "cs2.exe",
-    "valorant.exe"
+    "cs2",
+    "valorant"
   ],
-  "_gameProcesses": "无边框窗口运行的游戏检测不到，把进程名（小写）填这里兜底。",
+  "_gameProcesses": "自动识别不到的游戏填这里兜底 —— 写进程名，不带 .exe、不区分大小写。全屏游戏通常已经能自动识别，只有窗口化运行、或系统没报全屏状态的才需要填。",
 
   "sourceNames": {
     "_说明": "进程名（小写）→ 想显示的名字。会和内置表合并，这里只写你想加的或想改的。",

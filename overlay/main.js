@@ -90,8 +90,9 @@ const CFG_DEFAULTS = {
   _demoMode: '改成 true 会在界面上补一些假卡片，方便看满屏时三根绳和沙漏的样子，不写进磁盘。',
 
   gameProcesses: [],
-  _gameProcesses: '无边框窗口运行的游戏检测不到，把它们的进程名（小写）填这里兜底，'
-                + '例如 ["cs2.exe", "valorant.exe"]。',
+  _gameProcesses: '自动识别不到的游戏填这里兜底 —— 写进程名，不带 .exe、不区分大小写，'
+                + '例如 ["uagame", "cs2"]。全屏游戏通常已经能自动识别，'
+                + '只有窗口化运行、或系统没报全屏状态的才需要填。',
 
   introSeen: false
 };
@@ -660,16 +661,20 @@ function pollGame() {
     }
     const list = (cfg.gameProcesses || []).map(function (x) { return String(x).toLowerCase(); });
     const blacklisted = g.app && list.indexOf(g.app) >= 0;
-    const hard = g.state === 3 || g.state === 4 || g.state === 1 || g.state === 6 || blacklisted;
-    const soft = g.state === 2;
+    // 只要系统报「不在场 / 有全屏窗口 / 全屏 D3D / 投屏 / 安静时间」，就当作别打扰的时刻。
+    // 2 必须算进来：Windows 11 的「全屏优化」会让绝大多数全屏游戏报 2 而不是 3，
+    // 只认 3 的话游戏里浮层还是会被顶边唤出来。代价是全屏看视频 / 演示时同样安静。
+    const quiet = g.state === 1 || g.state === 2 || g.state === 3 || g.state === 4 || g.state === 6;
+    const hard = quiet || blacklisted;
 
-    if (hard || soft) {
+    if (hard) {
       if (expanded) {
         hideOverlay();
         expanded = false;
         log('检测到全屏/游戏 state=' + g.state + (blacklisted ? ' 黑名单:' + g.app : '') + '，收起浮层');
       }
-      if (hard) { releaseHotkeys(); gameActive = true; }
+      releaseHotkeys();
+      gameActive = true;
     } else {
       if (!hotkeyOn) { registerHotkeys(); gameActive = false; }
     }

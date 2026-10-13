@@ -1,7 +1,7 @@
 {
   "name": "fadeline-overlay",
   "productName": "灵光一挂",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "灵光一挂 · 把灵感挂到一根绳子上，让时间替你淘汰",
   "main": "main.js",
   "author": "ZiO",
