@@ -367,15 +367,39 @@ function createOverlay() {
       ' · 最多 ' + cap.maxRopes + ' 绳 · 容量 ' + cap.capacity);
 }
 
+/**
+ * 展开浮层。返回「是否真的展开了」—— 被游戏/全屏挡下时返回 false，
+ * 调用方（toggle）必须据此决定 expanded，否则状态会和实际画面相反：
+ * 浮层没出来，expanded 却写成 true，下一次推顶边就变成「收起」。
+ */
 function showOverlay() {
-  if (gameActive) { log('游戏中，忽略唤起'); return; }
-  if (!overlay || overlay.isDestroyed()) return;
+  // gameActive 是轮询给的，收起状态下最多可能旧 800ms —— 游戏刚切全屏的那一下
+  // 推顶边，光看这个标志会漏判、浮层照样弹出来。原生模块可用时当场同步问一次，
+  // 问到安静就直接不展开。（Python 回退是异步的，没这个能力，只能信轮询。）
+  if (NATIVE_OK) {
+    let g = null;
+    try { g = win32.gameState(); } catch (e) { log('当场复查全屏失败：' + e.message); }
+    if (g) {
+      const j = judgeGame(g);
+      if (j.hard) {
+        if (!gameActive) { releaseHotkeys(); gameActive = true; }
+        log('游戏中，忽略唤起（当场复查 state=' + j.state + (j.blacklisted ? ' 黑名单:' + j.app : '') + '）');
+        return false;
+      }
+      if (gameActive) { registerHotkeys(); gameActive = false; }
+    }
+  } else if (gameActive) {
+    log('游戏中，忽略唤起');
+    return false;
+  }
+  if (!overlay || overlay.isDestroyed()) return false;
   overlay.showInactive();
   overlay.setAlwaysOnTop(true, 'screen-saver');
   overlay.moveTop();
   ctxSource = captureSource();
   runSettle();                                   // 只在展开这一刻结算
   overlay.webContents.send('expand');
+  return true;
 }
 
 function hideOverlay() {
@@ -387,7 +411,7 @@ function toggle() {
   // 日志打印切换【之后】的状态。之前打的是切换前的值，
   // 写着 "expanded=true" 而实际结果是收起了 —— 调试时极易读反。
   if (expanded) { hideOverlay(); expanded = false; }
-  else { showOverlay(); expanded = true; }
+  else { expanded = showOverlay(); }   // 被游戏挡下时返回 false —— 状态不能跟着写成展开
   log('toggle → 现在' + (expanded ? '展开' : '收起'));
 }
 
@@ -653,32 +677,44 @@ function queryGameState(cb) {
 
 let pollTimer = null;
 let pollLogged = false;
+
+/**
+ * 把一次 gameState 判定成「要不要安静」。抽出来是因为两个地方要用：
+ * 轮询（pollGame）和推顶边当场复查（showOverlay）—— 判定口径必须只有一处，
+ * 否则两条路各写一遍，早晚会漂移成两种行为。
+ */
+function judgeGame(g) {
+  const list = (cfg.gameProcesses || []).map(function (x) { return String(x).toLowerCase(); });
+  const blacklisted = !!(g.app && list.indexOf(g.app) >= 0);
+  // 只要系统报「不在场 / 有全屏窗口 / 全屏 D3D / 投屏 / 安静时间」，就当作别打扰的时刻。
+  // 2 必须算进来：Windows 11 的「全屏优化」会让绝大多数全屏游戏报 2 而不是 3，
+  // 只认 3 的话游戏里浮层还是会被顶边唤出来。代价是全屏看视频 / 演示时同样安静。
+  const quiet = g.state === 1 || g.state === 2 || g.state === 3 || g.state === 4 || g.state === 6;
+  return { hard: quiet || blacklisted, blacklisted: blacklisted, state: g.state, app: g.app };
+}
+
 function pollGame() {
   queryGameState(function (g) {
     if (!pollLogged) {
       pollLogged = true;
       log('游戏检测启动：state=' + g.state + ' app=' + g.app);
     }
-    const list = (cfg.gameProcesses || []).map(function (x) { return String(x).toLowerCase(); });
-    const blacklisted = g.app && list.indexOf(g.app) >= 0;
-    // 只要系统报「不在场 / 有全屏窗口 / 全屏 D3D / 投屏 / 安静时间」，就当作别打扰的时刻。
-    // 2 必须算进来：Windows 11 的「全屏优化」会让绝大多数全屏游戏报 2 而不是 3，
-    // 只认 3 的话游戏里浮层还是会被顶边唤出来。代价是全屏看视频 / 演示时同样安静。
-    const quiet = g.state === 1 || g.state === 2 || g.state === 3 || g.state === 4 || g.state === 6;
-    const hard = quiet || blacklisted;
+    const j = judgeGame(g);
 
-    if (hard) {
+    if (j.hard) {
       if (expanded) {
         hideOverlay();
         expanded = false;
-        log('检测到全屏/游戏 state=' + g.state + (blacklisted ? ' 黑名单:' + g.app : '') + '，收起浮层');
+        log('检测到全屏/游戏 state=' + j.state + (j.blacklisted ? ' 黑名单:' + j.app : '') + '，收起浮层');
       }
       releaseHotkeys();
       gameActive = true;
     } else {
       if (!hotkeyOn) { registerHotkeys(); gameActive = false; }
     }
-    pollTimer = setTimeout(pollGame, expanded ? 1500 : 3000);
+    // 收起状态下也要勤查：原来 3 秒一次，游戏刚切全屏的那几秒是空窗，
+    // 推顶边会漏判（showOverlay 的当场复查只是补救，轮询本身不该留这么大缝）。
+    pollTimer = setTimeout(pollGame, expanded ? 1500 : 800);
   });
 }
 
@@ -833,7 +869,7 @@ app.whenReady().then(function () {
 
   ipcMain.handle('data-load', function () { return payload(); });
 
-  setTimeout(function () { log('首次自动展开'); showOverlay(); expanded = true; }, 700);
+  setTimeout(function () { log('首次自动展开'); expanded = showOverlay(); }, 700);
   setTimeout(pollGame, 5000);   // 启动 5 秒后开始游戏检测轮询
 
   // 配置说要开机自启但快捷方式不见了（被误删 / 被杀软隔离），补建回来
