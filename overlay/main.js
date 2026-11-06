@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, screen, ipcMain, shell, Tray, Menu, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, globalShortcut, screen, ipcMain, shell, Tray, Menu, nativeImage, dialog, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
@@ -775,6 +775,17 @@ app.whenReady().then(function () {
   });
 
   ipcMain.on('log', function (e, m) { log('[renderer] ' + m); });
+
+  // 复制：浮层是 focusable:false 的窗口，拿不到键盘焦点 —— 选中文字按 Ctrl+C 永远不会生效，
+  // 所以复制只能由主进程代写剪贴板；右键菜单本身画在浮层页面里（系统菜单在这个窗口点不动）。
+  ipcMain.on('clipboard-write', function (e, p) {
+    const text = String((p && p.text) || '');
+    if (!text) return;
+    clipboard.writeText(text);
+    log('复制到剪贴板 ' + text.length + ' 字');
+  });
+
+  ipcMain.handle('read-clipboard', function () { return clipboard.readText() || ''; });
 
   ipcMain.on('dismiss-intro', function () {
     cfg.introSeen = true;

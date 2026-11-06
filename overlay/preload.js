@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('rail', {
   adoptCard: (p) => ipcRenderer.send('data-adopt', p),
   trashCard: (p) => ipcRenderer.send('data-trash', p),
   undo: () => ipcRenderer.send('data-undo'),
+  writeClipboard: (text) => ipcRenderer.send('clipboard-write', { text }),
+  readClipboard: () => ipcRenderer.invoke('read-clipboard'),
 
   onDataChanged: (cb) => ipcRenderer.on('data-changed', (e, p) => cb(p)),
   dismissIntro: () => ipcRenderer.send('dismiss-intro'),

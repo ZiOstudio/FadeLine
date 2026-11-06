@@ -116,6 +116,20 @@
   #toast .ul{color:#DCC07A;cursor:pointer;pointer-events:auto;text-decoration:underline;margin-left:8px;}
   #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
 
+  /* 右键菜单：画在浮层自己身上（系统菜单在 focusable:false 的窗口里点不动） */
+  #ctx{
+    position:fixed;left:0;top:0;display:none;min-width:172px;padding:6px;
+    background:rgba(252,247,236,.985);border:1px solid rgba(120,100,60,.20);
+    border-radius:12px;z-index:95;pointer-events:auto;
+    box-shadow:0 12px 30px rgba(40,30,10,.24),0 1px 0 rgba(255,255,255,.9) inset;
+  }
+  #ctx.on{display:block;}
+  #ctx .mi{
+    padding:8px 12px;border-radius:8px;font-size:13px;color:#3A3024;
+    white-space:nowrap;cursor:pointer;line-height:1.2;
+  }
+  #ctx .mi:hover{background:rgba(120,100,60,.13);}
+
   #alarm{
     position:absolute;left:50%;transform:translateX(-50%);top:16px;
     max-width:72%;box-sizing:border-box;
@@ -188,6 +202,7 @@
 
 <div id="hud"></div>
 <div id="toast" data-hot></div>
+<div id="ctx" data-hot></div>
 <div id="alarm"></div>
 
 <div id="intro">
@@ -621,6 +636,9 @@ function introDone(reason) {
 /* ---------------------------------------------------- 拖拽 */
 
 document.addEventListener('pointerdown', function (e) {
+  // 只认左键：右键要留给 contextmenu（复制/粘贴菜单）。
+  // 之前任何键都 preventDefault + 捕获指针，右键的 contextmenu 就被吃掉了。
+  if (e.button !== 0) return;
   const card = e.target.closest && e.target.closest('.card');
   if (!card || !showing || editingId) return;
   e.preventDefault();
@@ -718,21 +736,25 @@ addBtn.addEventListener('pointerdown', function (e) {
   if (showing && window.rail) window.rail.setIgnore(false);
 });
 
-addBtn.addEventListener('click', function (e) {
-  e.stopPropagation();
-  if (!showing || !window.rail) return;
-  introDone('点了新增');
+function openNewCard(initialText) {
   // 新卡片会成为第一根绳上的第 0 张：按「加进来之后这根绳有几张」算它落在哪，
   // 否则未满居中时编辑窗会照着铺满模式的老位置弹出来。
   const onRope0 = Math.min(listOnRopes().length, PER_ROW);
   const nRope = Math.min(onRope0 + 1, PER_ROW);
   const p = L.placeOf(0, W, PER_ROW, ROPE_TOP, SAG, ROW_STRIDE, nRope);
   const x = p.x, y = p.y;
-  window.rail.log('点击新增');
   window.rail.openEditor({
-    id: '', mode: 'new', text: '', source: '', clip: 'blue',
+    id: '', mode: 'new', text: initialText || '', source: '', clip: 'blue',
     rect: { left: x - CARD_W / 2, top: y + SLOT_PAD, width: CARD_W, height: CARD_H }
   });
+}
+
+addBtn.addEventListener('click', function (e) {
+  e.stopPropagation();
+  if (!showing || !window.rail) return;
+  introDone('点了新增');
+  window.rail.log('点击新增');
+  openNewCard('');
 });
 
 function openInlineEditor(id, card) {
@@ -748,6 +770,89 @@ function openInlineEditor(id, card) {
     id: id, mode: 'edit', text: it.text, source: it.source, clip: it.clip,
     rect: { left: r.left, top: r.top, width: r.width, height: r.height }
   });
+}
+
+/* ---------------------------------------------------- 右键：复制 / 粘贴 */
+
+// 为什么不用系统菜单：浮层是 focusable:false 的窗口，Menu.popup 弹出来拿不到输入焦点，
+// 点击会穿透到下面的应用（实测点「复制这条」反而触发了新增）。
+// 所以菜单画在浮层自己身上，点哪里都算浮层内部事件。
+const ctxEl = $('ctx');
+let ctxCard = null;      // 菜单当前针对的卡片
+let ctxAt = 0;           // 打开时间，防止「右键那一下」顺带把菜单点掉
+
+function closeCtx() {
+  if (!ctxEl.classList.contains('on')) return;
+  ctxEl.classList.remove('on');
+  ctxCard = null;
+}
+
+function openCtx(x, y, card) {
+  ctxCard = card;
+  ctxEl.innerHTML =
+    '<div class="mi" data-a="copy">复制这条</div>' +
+    '<div class="mi" data-a="paste">粘贴为新灵感</div>';
+  ctxEl.classList.add('on');
+  const w = ctxEl.offsetWidth || 172, h = ctxEl.offsetHeight || 84;
+  ctxEl.style.left = Math.max(8, Math.min(x, innerWidth - w - 10)) + 'px';
+  ctxEl.style.top = Math.max(8, Math.min(y, innerHeight - h - 10)) + 'px';
+  ctxAt = Date.now();
+  if (window.rail) window.rail.setIgnore(false);   // 菜单要能点，先取消穿透
+}
+
+function pasteFromClipboard() {
+  if (!window.rail) return;
+  window.rail.readClipboard().then(function (t) {
+    t = String(t || '').trim();
+    if (!t) { toast('剪贴板是空的'); return; }
+    if (!showing) return;
+    introDone('粘贴为新灵感');
+    toast('已粘贴到新灵感');
+    openNewCard(t);
+  });
+}
+
+document.addEventListener('contextmenu', function (e) {
+  if (!showing || !window.rail) return;
+  const card = e.target && e.target.closest ? e.target.closest('.card') : null;
+  const id = card ? card.dataset.id : '';
+  if (!id || id.indexOf('__demo') === 0) return;
+  e.preventDefault();
+  introDone('右键');
+  openCtx(e.clientX, e.clientY, card);
+});
+
+if (ctxEl) {
+  ctxEl.addEventListener('pointerdown', function (e) {
+    const mi = e.target && e.target.closest ? e.target.closest('.mi') : null;
+    if (!mi) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const a = mi.dataset.a;
+    const card = ctxCard;
+    closeCtx();
+    const it = card ? S.ideas.filter(function (x) { return x.id === card.dataset.id; })[0] : null;
+    if (a === 'copy') {
+      if (!it) return;
+      window.rail.writeClipboard(it.text);
+      toast('已复制到剪贴板');
+    } else if (a === 'paste') {
+      pasteFromClipboard();
+    }
+  });
+}
+
+// 点到菜单外面就收起来（浮层穿透时这条不会触发，所以菜单打开期间忽略点为 false）
+document.addEventListener('pointerdown', function (e) {
+  if (!ctxEl.classList.contains('on')) return;
+  if (ctxEl.contains(e.target)) return;
+  if (Date.now() - ctxAt < 150) return;
+  closeCtx();
+}, true);
+
+if (window.rail) {
+  window.rail.onExpand(closeCtx);
+  window.rail.onCollapse(closeCtx);
 }
 
 if (window.rail) {
