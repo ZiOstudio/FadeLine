@@ -417,6 +417,38 @@ function toggle() {
 
 /* ------------------------------------------------ 编辑器 */
 
+// 编辑窗里的右键菜单：没选区给「粘贴」，有选区给「剪切 / 复制 / 删除」，另加全选。
+// 弹菜单时窗口会短暂失焦，用 editorMenuOpen 挡住「失焦即关闭」。
+let editorMenuOpen = false;
+let editorLoadedAt = 0;
+
+function attachEditorMenu(win) {
+  win.webContents.on('context-menu', function (e, params) {
+    const hasSel = !!(params.selectionText && params.selectionText.trim());
+    const t = [];
+    if (params.isEditable) {
+      if (hasSel) {
+        t.push({ label: '剪切', role: 'cut' });
+        t.push({ label: '复制', role: 'copy' });
+        t.push({ label: '删除', role: 'delete' });
+      } else {
+        t.push({ label: '粘贴', role: 'paste' });
+      }
+      t.push({ type: 'separator' });
+      t.push({ label: '全选', role: 'selectAll' });
+    } else if (hasSel) {
+      t.push({ label: '复制', role: 'copy' });
+      t.push({ label: '全选', role: 'selectAll' });
+    }
+    if (!t.length) return;
+    editorMenuOpen = true;
+    Menu.buildFromTemplate(t).popup({
+      window: win,
+      callback: function () { editorMenuOpen = false; }
+    });
+  });
+}
+
 function openEditor(p) {
   if (p && p.mode === 'new' && !p.source) {
     let s = captureSource();
@@ -432,6 +464,7 @@ function openEditor(p) {
   if (editor && !editor.isDestroyed()) {
     editor.setBounds({ x: x, y: y, width: W, height: H });
     editor.show(); editor.moveTop(); editor.focus();
+    editorLoadedAt = Date.now();
     editor.webContents.send('load', p);
     return;
   }
@@ -446,8 +479,27 @@ function openEditor(p) {
   });
   editor.setAlwaysOnTop(true, 'screen-saver');
   editor.loadFile('editor.html');
+  attachEditorMenu(editor);
+  // 点标签外面（窗口失焦）＝取消，不保存也不提醒。
+  // 但「失焦」太吵：切一次输入法、别的窗口抢一下焦点都会触发，所以失焦后再看一眼
+  // 光标在哪儿——光标还在窗内就不关，只有真的点到窗外的地儿才关。
+  // 刚换过一次卡片的 500ms 里免伤，否则会被上一次的失焦立刻关掉。
+  editor.on('blur', function () {
+    if (editorMenuOpen) return;
+    if (Date.now() - editorLoadedAt < 500) return;
+    setTimeout(function () {
+      if (!editor || editor.isDestroyed() || editorMenuOpen) return;
+      if (editor.isFocused()) return;
+      const pt = screen.getCursorScreenPoint();
+      const b = editor.getBounds();
+      const inside = pt.x >= b.x && pt.x <= b.x + b.width && pt.y >= b.y && pt.y <= b.y + b.height;
+      if (inside) return;
+      closeEditor();
+    }, 120);
+  });
   editor.once('ready-to-show', function () {
     editor.show(); editor.moveTop(); editor.focus();
+    editorLoadedAt = Date.now();
     editor.webContents.send('load', p);
   });
   editor.on('closed', function () {
@@ -796,6 +848,12 @@ app.whenReady().then(function () {
     try {
       const idea = store.add(VAULT, p.text, p.source, p.clip);
       log('新增 ' + idea.filename + '  来源=' + (p.source || '—'));
+      if (p.adopt && idea) {
+        const from = idea.status;
+        store.move(VAULT, idea, 'closet', '我决定采用');
+        recordAction([{ id: idea.id, from: from, to: 'closet' }], '已采用');
+        log('采用（新建即采用）' + idea.filename);
+      }
     } catch (err) {
       log('★新增失败：' + err.message);
     }

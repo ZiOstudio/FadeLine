@@ -49,10 +49,9 @@
   </div>
   <textarea id="text" spellcheck="false" placeholder="写点什么…"></textarea>
   <div class="foot">
-    <span>Ctrl+Enter 保存 · Esc 取消</span>
+    <span>Ctrl+Enter 保存 · Esc 取消 · 点标签外面也取消</span>
     <span class="sp"></span>
     <button id="trash" class="del">丢掉</button>
-    <button id="cancel">取消</button>
     <button id="save">保存</button>
     <button id="adopt" class="adopt">采用</button>
   </div>
@@ -82,12 +81,13 @@ src.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') { e.preventDefault(); window.rail.closeEditor(); }
 });
 document.getElementById('save').onclick = save;
-document.getElementById('cancel').onclick = function () { window.rail.closeEditor(); };
 document.getElementById('adopt').onclick = function () {
-  if (!cur || cur.mode === 'new') return;
+  if (!cur) return;
   const t = text.value.trim();
   if (!t) { text.focus(); return; }
-  window.rail.adoptCard({ id: cur.id, text: t, source: src.value.trim() });
+  const payload = { id: cur.id, text: t, source: src.value.trim() };
+  if (cur.mode === 'new') { payload.adopt = true; window.rail.addCard(payload); }
+  else window.rail.adoptCard(payload);
 };
 document.getElementById('trash').onclick = function () {
   if (!cur || cur.mode === 'new') { window.rail.closeEditor(); return; }
@@ -100,8 +100,6 @@ window.rail.onLoad(function (p) {
   text.value = p.text || '';
   clip.style.background = p.clip || '#5F5E5A';
   title.textContent = p.mode === 'new' ? '挂一条新灵感' : '编辑这条灵感';
-  document.getElementById('trash').style.display = p.mode === 'new' ? 'none' : '';
-  document.getElementById('adopt').style.display = p.mode === 'new' ? 'none' : '';
   setTimeout(function () {
     (p.mode === 'new' && !p.text ? text : text).focus();
     text.setSelectionRange(text.value.length, text.value.length);
